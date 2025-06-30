@@ -1,0 +1,255 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WWTools</title>
+
+<link rel="stylesheet" href="./css/comomn.css">
+<script src="./js/common.js" defer></script>
+<script src="./js/score-checker.js" type="module" defer></script>
+</head>
+<body>
+<header>
+    <a id="site-name" href="./index.html"><img src="./img/common/icons/SP_FuncIconMonster.webp" width="24">WWTools</a>
+    <button id="settings-button"><img src="./img/common/icons/SP_FuncIconSetup.webp" width="24"></button>
+</header>
+<div id="loading-screen">
+    <div class="loading-text">Loading...</div>
+    <div class="loading-spinner"></div>
+</div>
+<main>
+    <section id="character-card-section" style="position: relative;z-index: 0;">
+        <!-- <div id="score-checker-info">
+            <p>ここに公式Discoardのキャラカードを<br>「Ctrl+V」または「ドラックアンドドロップ」するとスコアを計測できます。</p>
+            <p>個別の音骸だけ更新したい場合は、<br>対象の音骸サムネイル欄をクリックしてください。</p>
+        </div> -->
+        <textarea id="ocr-paste-area" placeholder="ここに
+公式Discoardのキャラカードを「Ctrl+V」などで張り付け、
+または「ドラックアンドドロップ」するとスコアを計測できます。"></textarea>
+
+        <h1 id="chara-name">
+            <img src="./img/common/icons/elements/Spectro.webp" width="60" height="60">
+            <b>漂泊者・回折</b>
+            <button id="chara-change-button">
+                <svg width="56" height="56"><use href="./img/common/icons/icons.svg#change"></use></svg>
+            </button>
+        </h1>
+        <figure id="selected-character-figure">
+            <img src="./img/common/chara/profile/Rover-Havoc-Female.webp" width="493" height="680">
+        </figure>
+        <div id="resonance-chain">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+            <img src="./img/common/icons/ResonanceChain_OFF.png" width="68" height="96">
+        </div>
+
+        <div id="total-score">
+            <!-- <h2>Echo Rank</h2>
+            <p>SS</p> -->
+            <h2>Total Score</h2>
+            <p>150</p>
+        </div>
+        
+        <div id="score-factors">
+            <h2>比重値</h2>
+            <select id="factor-type-select">
+                <option value="default">デフォルト</option>
+                <option value="custom">カスタム</option>
+            </select>
+            <ul>
+                <li><label>HP</label><input id="hp-factor" type="number" step="0.1" value="0.0"></li>
+                <li><label>攻撃力</label><input id="atk-factor" type="number" step="0.1" value="1.0"></li>
+                <li><label>防御力</label><input id="def-factor" type="number" step="0.1" value="0.0"></li>
+                <li><label>共鳴効率</label><input id="echo" type="number" step="0.1" value="0.6"></li>
+                <li><label>クリティカル</label><input id="critical-per-factor" type="number" step="0.1" value="2.0"></li>
+                <li><label>クリティカルダメージ</label><input id="critical-dmg-factor" type="number" step="0.1" value="1.0"></li>
+                <li><label>通常攻撃ダメージアップ</label><input id="normal-atk-factor" type="number" step="0.1" value="0.6"></li>
+                <li><label>重撃ダメージアップ</label><input id="heavy-atk-factor" type="number" step="0.1" value="0.0"></li>
+                <li><label>共鳴スキルダメージアップ</label><input id="resonance-skill-atk-factor" type="number" step="0.1" value="0.0"></li>
+                <li><label>共鳴解放ダメージアップ</label><input id="liberation-atk-factor" type="number" step="0.1" value="0.0"></li>
+            </ul>
+        </div>
+        <ul id="echo-list">
+            <li>
+                <figure><img src="./img/common/echo/cost4/H71.webp" width="160" height="160"></figure>
+                <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
+                <div class="cost">4</div>
+                <table class="main-stats">
+                    <tr><th>クリティカルダメージ</th><td>44%</td></tr>
+                    <tr><th>攻撃力</th><td>150</td></tr>
+                </table>
+                <table class="sub-stats">
+                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                    <tbody>
+                        <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
+                        <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
+                        <tr><th>攻撃力</th><td>12.0%</td><td>12.0</td></tr>
+                        <tr><th>共鳴効率</th><td>10.0%</td><td>5.0</td></tr>
+                        <tr><th>通常攻撃ダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
+                    </tbody>
+                </table>
+                <p class="rank"><i>Rank</i><b>SS</b></p>
+                <p class="score"><i>Score</i><b>75</b></p>
+            </li>
+            <li>
+                <figure><img src="./img/common/echo/cost4/Z01.webp" width="160" height="160"></figure>
+                <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
+                <div class="cost">4</div>
+                <table class="main-stats">
+                    <tr><th>気動ダメージアップ</th><td>30%</td></tr>
+                    <tr><th>攻撃力</th><td>150</td></tr>
+                </table>
+                <table class="sub-stats">
+                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                    <tbody>
+                        <tr><th>通常攻撃ダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
+                        <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
+                        <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
+                        <tr><th>攻撃力</th><td>12.0%</td><td>12.0</td></tr>
+                        <tr><th>共鳴効率</th><td>10.0%</td><td>5.0</td></tr>
+                    </tbody>
+                </table>
+                <p class="rank"><i>Rank</i><b>SS</b></p>
+                <p class="score"><i>Score</i><b>75</b></p>
+            </li>
+            <li>
+                <figure><img src="./img/common/echo/cost4/H80.webp" width="160" height="160"></figure>
+                <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
+                <div class="cost">4</div>
+                <table class="main-stats">
+                    <tr><th>気動ダメージアップ</th><td>30%</td></tr>
+                    <tr><th>攻撃力</th><td>150</td></tr>
+                </table>
+                <table class="sub-stats">
+                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                    <tbody>
+                        <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
+                        <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
+                        <tr><th>攻撃力</th><td>12.0%</td><td>12.0</td></tr>
+                        <tr><th>通常攻撃ダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
+                        <tr><th>共鳴効率</th><td>10.0%</td><td>5.0</td></tr>
+                    </tbody>
+                </table>
+                <p class="rank"><i>Rank</i><b>SS</b></p>
+                <p class="score"><i>Score</i><b>75</b></p>
+            </li>
+            <li>
+                <figure><img src="./img/common/echo/cost4/H72.webp" width="160" height="160"></figure>
+                <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
+                <div class="cost">4</div>
+                <table class="main-stats">
+                    <tr><th>攻撃力</th><td>28.8%</td></tr>
+                    <tr><th>攻撃力</th><td>150</td></tr>
+                </table>
+                <table class="sub-stats">
+                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                    <tbody>
+                        <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
+                        <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
+                        <tr><th>攻撃力</th><td>12.0%</td><td>12.0</td></tr>
+                        <tr><th>共鳴効率</th><td>10.0%</td><td>5.0</td></tr>
+                        <tr><th>通常攻撃ダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
+                    </tbody>
+                </table>
+                <p class="rank"><i>Rank</i><b>SS</b></p>
+                <p class="score"><i>Score</i><b>75</b></p>
+            </li>
+            <li>
+                <figure><img src="./img/common/echo/cost4/H73.webp" width="160" height="160"></figure>
+                <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
+                <div class="cost">4</div>
+                <table class="main-stats">
+                    <tr><th>攻撃力</th><td>28.8%</td></tr>
+                    <tr><th>HP</th><td>2280</td></tr>
+                </table>
+                <table class="sub-stats">
+                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                    <tbody>
+                        <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
+                        <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
+                        <tr><th>攻撃力</th><td>12.0%</td><td>12.0</td></tr>
+                        <tr><th>共鳴効率</th><td>10.0%</td><td>5.0</td></tr>
+                        <tr><th class="compact">共鳴スキルダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
+                    </tbody>
+                </table>
+                <p class="rank"><i>Rank</i><b>SS</b></p>
+                <p class="score"><i>Score</i><b>75</b></p>
+            </li>
+        </ul>
+    </section>
+    <!-- <section id="site-info">
+        <ul>
+            <li>入力情報は、キャラごとにユーザーのブラウザ（Local Storage）に保持されます。<br>こちらでは一切のデータをアップロード・取得しないため、PCやブラウザの切り替えが必要な方はページ右上の設定アイコンから Data Export/Import してご対応ください。（まだ未実装）</li>
+            <li>このサイトは個人が趣味で運営しているものです。<br>掲載されている情報やツールの利用により生じたいかなる損害・問題について、当方は一切の責任を負いかねます。その旨ご了承いただける方のみご利用ください。</li>
+        </ul>
+    </section> -->
+</main>
+<footer>
+    <p>Game contents are trademarks and copyrights of Kuro Games.</p>
+</footer>
+
+<div id="chara-selecter-window" style="display: none;">
+    <nav class="tabs">
+        <button data-attribute="凝縮">凝縮</button>
+        <button data-attribute="焦熱">焦熱</button>
+        <button data-attribute="電導">電導</button>
+        <button data-attribute="気動">気動</button>
+        <button data-attribute="回折">回折</button>
+        <button data-attribute="消滅">消滅</button>
+    </nav>
+    <div id="characters">
+        
+    </div>
+    <button id="close-popup">閉じる</button>
+</div>
+
+<div id="echo-scan-window">
+    <!-- <img id="matched-echo-thumb" src="./img/common/echo/cost4/Z02.webp" alt="最も近いEcho画像"> -->
+    <img id="matched-echo-thumb" width="256" height="256" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" alt="最も近いEcho画像">
+    <div id="score-checker-window">
+        <select id="echo-select">
+            <optgroup label="COST1">
+                <option value="アツツ">アツツ</option>
+            </optgroup>
+            <optgroup label="COST3">
+                <option value="アビサル・グラディウス">アビサル・グラディウス</option>
+            </optgroup>
+            <optgroup label="COST4">
+                <option value=ノコロッサス>ゼノコロッサス</option>
+            </optgroup>
+        </select>
+    
+        <table id="main-stats-table">
+            <thead><tr><th>Main Status</th><th>Value</th><th>Score</th></tr></thead>
+            <tbody>
+                <tr><td><select id="main-option-1"></select></td><td><input id="main-option-1-value" type="text"></td><td></td>
+                </tr><tr><td><select id="main-option-2" readonly></select></td><td><input id="main-option-2-value" type="text"></td><td></td></tr>
+            </tbody>
+        </table>
+        <table id="sub-stats-table">
+            <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
+            <tbody>
+                <tr><td><select></select></td><td><input type="text"></td><td></td></tr>
+                <tr><td><select></select></td><td><input type="text"></td><td></td></tr>
+                <tr><td><select></select></td><td><input type="text"></td><td></td></tr>
+                <tr><td><select></select></td><td><input type="text"></td><td></td></tr>
+                <tr><td><select></select></td><td><input type="text"></td><td></td></tr>
+            </tbody>
+        </table>
+        <div>
+            <button id="calc-score-button">スコアを計測する</button>
+        </div>
+    </div>
+    <h2>音骸ステータス画像解析</h2>
+    <p>音骸のステータスをスクリーンショットから読み取ります。</p>
+    <p>次のようなスクショを撮影し、テキストエリアにペーストしてください。</p>
+    <figure><img src="./img/score_checker/ocr_source_sample.png" height="256"></figure>
+    <textarea id="ocr-result-textarea" placeholder="Ctrl+V" width="300" height="300"></textarea>
+    <button id="start-ocr-button">OCRを開始</button>
+    <button id="close-ocr-window">閉じる</button>
+</div>
+
+</body>
+</html>

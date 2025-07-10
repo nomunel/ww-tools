@@ -1,5 +1,43 @@
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.esm.min.js";
 
+const isDebugMode = false; // デバッグモードのフラグ
+
+const MAIN_STATUS_1_LABELS = [
+    "HP",
+    "攻撃力",
+    "防御力",
+    "共鳴効率",
+    "クリティカル",
+    "クリティカルダメージ",
+    "凝縮ダメージアップ",
+    "焦熱ダメージアップ",
+    "電導ダメージアップ",
+    "気動ダメージアップ",
+    "回折ダメージアップ",
+    "消滅ダメージアップ",
+    "HP回復効果アップ",
+];
+const MAIN_STATUS_2_LABELS = [
+    "HP",
+    "攻撃力",
+];
+const SUB_STATUS_LABELS = [
+    "HP",
+    "攻撃力",
+    "防御力",
+    "共鳴効率",
+    "クリティカル",
+    "クリティカルダメージ",
+    "通常攻撃ダメージアップ",
+    "重撃ダメージアップ",
+    "共鳴スキルダメージアップ",
+    "共鳴解放ダメージアップ",
+];
+
+const WEAPON_TYPES = {
+    "ja": ["長刃", "迅刀", "拳銃", "手甲", "増幅器"],
+    "en": ["Broadblade", "Sword", "Pistols", "Gauntlets", "Rectifier"]
+};
 
 class ImageUtil {
     static getCharaImagePath(charaData, type) {
@@ -16,8 +54,175 @@ class ImageUtil {
         }
         return `./img/common/chara/${type}/${name}.webp`;
     }
+    static getWeaponImagePath(weaponData, type) {
+        if (!weaponData.thumbID || !type) {
+            throw new Error('Invalid arguments: weaponData and type are required.');
+        }
+        const validTypes = ['thumb', 'profile'];
+        if (!validTypes.includes(type)) {
+            throw new Error(`Invalid type: must be one of ${validTypes.join(', ')}`);
+        }
+        const thumbID = String(weaponData.thumbID || "").slice(3);
+        return `./img/common/weapon/${WEAPON_TYPES["en"][weaponData.weaponType-1]}_${thumbID}.webp`;
+    }
 }
 
+
+// 汎用ポップアップウィンドウ制御クラス
+class TabSelecterModalView {
+    /**
+     * @param {string|HTMLElement} windowSelector - ポップアップウィンドウの要素またはID/CSSセレクタ
+     */
+    constructor(tabList) {
+        this.populateModalHTML(tabList);
+
+        // 閉じる処理
+        this._escHandler = (e) => {
+            if ((e.key === 'Escape' || e.key === 'Esc') && this.isOpen()) {
+                this.hide();
+            }
+        };
+
+        if (this.closeButton) {
+            this.closeButton.addEventListener('click', () => this.hide());
+        }
+        if (this.backdrop) {
+            this.backdrop.addEventListener('click', () => this.hide());
+        }
+        document.addEventListener('keydown', this._escHandler);
+
+        // タブ機能
+        this.tabs.forEach((button, index) => {
+            button.addEventListener('click', () => {
+                if (button.classList.contains('active')) {
+                    // 既にactiveならactiveを外して全リスト表示
+                    button.classList.remove('active');
+                    this.filterListByAttribute('all');
+                } else {
+                    this.setActiveTab(button);
+                }
+            });
+        });
+    }
+    populateModalHTML(tabList) {
+        // --- Backdrop追加 ---
+        const backdrop = document.createElement('div');
+        backdrop.className = 'tab-selecter-modal-backdrop';
+        backdrop.style.cssText = `
+            position: fixed; z-index: 9998; left: 0; top: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4); display: none;
+        `;
+
+        const modalElem = document.createElement('div');
+        modalElem.className = 'tab-selecter-modal';
+        modalElem.style.display = 'none';
+
+        const tabNav = document.createElement('nav');
+        tabList.forEach((tabLabel, index) => {
+            const button = document.createElement('button');
+            button.textContent = tabLabel;
+            button.dataset.attribute = tabLabel;
+            tabNav.appendChild(button);
+        });
+        modalElem.appendChild(tabNav);
+
+        const itemsContainer = document.createElement('ul');
+        modalElem.appendChild(itemsContainer);
+
+        const closeButton = document.createElement('button');
+        closeButton.className = 'close-button';
+        closeButton.innerHTML = '<svg width="32" height="32"><use href="./img/common/icons/icons.svg#close"></use></svg>';
+        modalElem.appendChild(closeButton);
+
+        document.body.appendChild(backdrop);
+        document.body.appendChild(modalElem);
+
+        this.modalElem = modalElem;
+        this.tabNav = tabNav;
+        this.tabs = tabNav.querySelectorAll('button');
+        this.itemsContainer = itemsContainer;
+        this.closeButton = closeButton;
+        this.backdrop = backdrop;
+    }
+    isolate(attribute) {
+        // タブを指定して、他のタブを非表示にする
+        this.tabs.forEach((tab) => {
+            if (tab.dataset.attribute === attribute) {
+                this.setActiveTab(tab);
+                return;
+            }
+        });
+        this.tabNav.style.display = 'none'; // タブナビゲーションを非表示
+    }
+    unIsolate() {
+        this.tabNav.style.display = 'block';
+    }
+
+    show() {
+        if (this.modalElem) this.modalElem.style.display = 'block';
+        if (this.backdrop) this.backdrop.style.display = 'block';
+    }
+
+    hide() {
+        if (this.modalElem) this.modalElem.style.display = 'none';
+        if (this.backdrop) this.backdrop.style.display = 'none';
+    }
+
+    isOpen() {
+        return this.modalElem && this.modalElem.style.display === 'block';
+    }
+
+    destroy() {
+        document.removeEventListener('keydown', this._escHandler);
+        if (this.backdrop) this.backdrop.remove();
+        if (this.modalElem) this.modalElem.remove();
+    }
+
+    /**
+     * 汎用: リストHTML生成（例: キャラ・武器など）
+     * @param {Array} items - 表示するデータ配列（name, srcのみを含む）
+     * @param {function} onItemClick - アイテムクリック時のコールバック (item, index, originalItem) => void
+     * @param {Array} [database] - 元データ配列（必要なら渡す）
+     */
+    renderList(items, onItemClick, database) {
+        // seelcterContainerを使う
+        this.itemsContainer.innerHTML = '';
+        items.forEach((item, idx) => {
+            const liElement = document.createElement('li');
+            liElement.dataset.attribute = item.attr;
+            // name, src以外は共通HTML
+            liElement.innerHTML = `<img width="128" height="128" alt="${item.name}" src="${item.src}">`;
+            liElement.addEventListener('click', () => onItemClick(database ? database[idx] : undefined));
+            this.itemsContainer.appendChild(liElement);
+        });
+        // 初期アクティブ
+        // this.setActiveTab(this.tabs[0]);
+    }
+
+    setActiveTab(selectTabElem) {
+        const selectAttr = selectTabElem.dataset.attribute;
+        this.tabs.forEach((tab) => {
+            tab.classList.toggle('active', selectAttr === tab.dataset.attribute);
+        });
+        this.filterListByAttribute(selectAttr);
+    }
+
+    /**
+     * 属性でリストをフィルタリング（キャラ選択用）
+     * @param {string} selectAttr
+     */
+    filterListByAttribute(selectAttr) {
+        const characterItems = this.itemsContainer.querySelectorAll('li');
+        characterItems.forEach(item => {
+            item.style.display = 'none';
+        });
+        characterItems.forEach(item => {
+            if (item.dataset.attribute === selectAttr || selectAttr === 'all') {
+                item.style.display = 'block';
+            }
+        });
+    }
+}
 
 class CharaSelecter {
     constructor() {
@@ -26,111 +231,471 @@ class CharaSelecter {
         this.selectedCharacterName = document.querySelector('#chara-name b');
         this.selectedCharacterElementType = document.querySelector('#chara-name img');
         this.charaChangeButton = document.getElementById('chara-change-button');
-        this.charaSelecterWindow = document.getElementById('chara-selecter-window');
-        this.tabs = this.charaSelecterWindow.querySelectorAll('.tab button');
-        this.charactersContainer = document.getElementById('characters');
-        this.closePopupButton = document.getElementById('close-popup');
+
+        this.hpInput = document.getElementById('chara-hp');
+        this.atkInput = document.getElementById('chara-atk');
+        this.defInput = document.getElementById('chara-def');
+
+        this.tabList = ["凝縮", "焦熱", "電導", "気動", "回折", "消滅"]
+        this.tabSelecterModalView = new TabSelecterModalView(this.tabList);
+
+        this.charactersDB = gameDataManager.getCharactersDB();
         this.init();
     }
 
     init() {
-        this.populateCharacterList();
-        this.addEventListeners();
-    }
-
-    populateCharacterList() {
-        let charaData = gameDataManager.getCharacterData();
-        charaData.sort((a, b) => {
+        // DBソート
+        this.charactersDB.sort((a, b) => {
+            // 並び順: this.tabList（属性順）→レアリティ降順→かな順
+            const attrOrderA = this.tabList.indexOf(a.element);
+            const attrOrderB = this.tabList.indexOf(b.element);
+            if (attrOrderA !== attrOrderB) return attrOrderA - attrOrderB;
             if (b.rarity !== a.rarity) return b.rarity - a.rarity;
             return a.kana.localeCompare(b.kana);
         });
 
-        this.charactersContainer.innerHTML = ''; // Clear previous characters
+        // ModalViewのリスト生成
+        const charaListData = this.charactersDB.map(charaDB => ({
+            name: charaDB.name,
+            attr: charaDB.element,
+            src: ImageUtil.getCharaImagePath(charaDB, 'thumb')
+        }));
+        this.tabSelecterModalView.renderList(
+            charaListData,
+            (charaDB) => {
+                this.setSelectedCharacter(charaDB);
+            },
+            this.charactersDB
+        );
 
-        const ulElement = document.createElement('ul');
-
-        charaData.forEach(character => {
-            const liElement = document.createElement('li');
-            liElement.className = 'character-item';
-            liElement.dataset.attribute = character.element; // Store attribute for filtering
-
-            const src = ImageUtil.getCharaImagePath(character, 'thumb');
-            liElement.innerHTML = `<img
-                class="character-img" width="128" height="128"
-                alt="${character.name}" src="${src}">`;
-
-
-            // const nameElement = document.createElement('p');
-            // nameElement.textContent = `名前: ${character.name}`;
-            // liElement.appendChild(nameElement);
-
-            // const attributeElement = document.createElement('p');
-            // attributeElement.textContent = `属性: ${character.element}`;
-            // liElement.appendChild(attributeElement);
-
-            liElement.addEventListener('click', () => {
-                this.setSelectedCharacter(character);
-            });
-
-            ulElement.appendChild(liElement);
-        });
-
-        this.charactersContainer.appendChild(ulElement);
+        this.addEventListeners();
     }
 
-    setSelectedCharacter(character) {
-        this.selectedCharacterElementType.src = `./img/common/icons/elements/${character.elementEn}.webp`;
-        this.selectedCharacterName.textContent = character.name;
-        this.selectedCharacterImg.src = ImageUtil.getCharaImagePath(character, 'profile');
-        this.charaSelecterWindow.style.display = 'none';
+    setSelectedCharacter(charaDB) {
+        this.selectedCharacterElementType.src = `./img/common/icons/elements/${charaDB.elementEn}.webp`;
+        this.selectedCharacterName.textContent = charaDB.name;
+        this.selectedCharacterImg.src = ImageUtil.getCharaImagePath(charaDB, 'profile');
+        this.tabSelecterModalView.hide();
+        
+        this.updateBaseStatus(charaDB);
+        this.updateChain();
+
+        const event = new CustomEvent('characterChanged', { detail: charaDB });
+        document.dispatchEvent(event);
+    }
+    updateBaseStatus(charaDB) {
+        this.hpInput.value = charaDB.baseHP || 0;
+        this.atkInput.value = charaDB.baseATK || 0;
+        this.defInput.value = charaDB.baseDEF || 0;
+    }
+
+    updateChain() {
+        // 実装例: チェイン情報をUIに反映する処理
     }
 
     addEventListeners() {
         this.charaChangeButton.addEventListener('click', () => {
-            this.charaSelecterWindow.style.display = 'block';
-        });
-
-        this.closePopupButton.addEventListener('click', () => {
-            this.charaSelecterWindow.style.display = 'none';
-        });
-
-        this.tabs.forEach((tab, index) => {
-            if (index === 0) {
-                tab.classList.add('active');
-                this.filterCharacters(tab.dataset.attribute);
-            }
-
-            tab.addEventListener('click', () => {
-                this.tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                this.filterCharacters(tab.dataset.attribute);
-            });
-        });
-
-        // Add Esc key event to close the window
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' || e.key === 'Esc') {
-                if (this.charaSelecterWindow.style.display === 'block') {
-                    this.charaSelecterWindow.style.display = 'none';
-                }
-            }
-        });
-    }
-
-    filterCharacters(attribute) {
-        const characterItems = this.charactersContainer.querySelectorAll('.character-item');
-
-        characterItems.forEach(item => {
-            item.style.display = 'none';
-        });
-
-        characterItems.forEach(item => {
-            if (item.dataset.attribute === attribute || attribute === 'all') {
-                item.style.display = 'block';
-            }
+            this.tabSelecterModalView.show();
         });
     }
 }
+
+
+class WeaponSelecter {
+    constructor() {
+        this.weaponDataElem = document.getElementById('weapon-data');
+        this.weaponNameElem = this.weaponDataElem.querySelector('h2');
+        this.weaponImgElem = this.weaponDataElem.querySelector('figure img');
+        this.weaponFigureElem = this.weaponDataElem.querySelector('figure');
+        this.weaponTable = this.weaponDataElem.querySelector('table');
+        this.weaponChangeButton = document.getElementById('weapon-change-button');
+        this.tuningRankSelect = this.weaponDataElem.querySelector('#weapon-tuning-rank select');
+        this.syntonizeElem = this.weaponDataElem.querySelector('.syntonize');
+
+        this.tabSelecterModalView = new TabSelecterModalView(WEAPON_TYPES["ja"]);
+        this.weaponsDB = gameDataManager.getWeaponsDB();
+        this.selectedWeaponDB = null;
+
+        this.init();
+    }
+
+    init() {
+        // ソート
+        this.weaponsDB.sort((a, b) => {
+            // 並び順: WEAPON_TYPES（type順）→レアリティ降順→名前順
+            const typeOrderA = WEAPON_TYPES["ja"].indexOf(a.type);
+            const typeOrderB = WEAPON_TYPES["ja"].indexOf(b.type);
+            if (typeOrderA !== typeOrderB) return typeOrderA - typeOrderB;
+            if (b.rarity !== a.rarity) return b.rarity - a.rarity;
+            return a.name.localeCompare(b.name);
+        });
+
+        // 属性リスト生成
+
+        // 一覧データ生成
+        const weaponListData = this.weaponsDB.map(w => ({
+            name: w.name,
+            attr: w.weaponType,
+            src: ImageUtil.getWeaponImagePath(w, 'thumb')
+        }));
+
+        this.tabSelecterModalView.renderList(
+            weaponListData,
+            (weaponDB) => {
+                this.setSelectedWeapon(weaponDB);
+            },
+            this.weaponsDB
+        );
+
+        this.addEventListeners();
+        // 初期選択
+        if (this.weaponsDB.length > 0) {
+            this.setSelectedWeapon(this.weaponsDB[0]);
+        }
+    }
+
+    addEventListeners() {
+        this.weaponChangeButton.addEventListener('click', () => {
+            this.tabSelecterModalView.show();
+        });
+        this.tuningRankSelect.addEventListener('change', () => {
+            this.updateTuningRank();
+        });
+    }
+    setSelectedWeaponById(weaponId, rank=1) {
+        const weaponDB = this.weaponsDB.find(w => w.id === weaponId);
+        if (weaponDB) {
+            this.setSelectedWeapon(weaponDB, rank);
+        } else {
+            console.warn(`Weapon with ID ${weaponId} not found.`);
+        }
+    }
+    setSelectedWeapon(weaponDB, rank=1) {
+        this.selectedWeaponDB = weaponDB;
+        // 画像
+        this.weaponImgElem.src = ImageUtil.getWeaponImagePath(weaponDB, 'thumb');
+        // レアリティ
+        this.weaponFigureElem.className = `rank${weaponDB.rarity}`;
+        // 名前
+        this.weaponNameElem.childNodes[0].nodeValue = weaponDB.name;
+        // ステータス
+        const propertyName1 = weaponDB.propertyName1 || 'undefined';
+        const propertyValue1 = weaponDB.propertyValue1 || 0;
+        const propertyName2 = weaponDB.propertyName2 || 'undefined';
+        let propertyValue2 = weaponDB.propertyValue2 || 0;
+        if (typeof propertyValue2 === 'number' && !Number.isInteger(propertyValue2)) {
+            propertyValue2 = (propertyValue2 * 100).toFixed(1) + '%';
+        }
+        const rows = this.weaponTable.querySelectorAll('tr');
+        if (rows[0]) {
+            rows[0].querySelector('th').textContent = propertyName1;
+            // 小数点以下を四捨五入して整数にする
+            let value1 = propertyValue1;
+            value1 = Math.round(parseFloat(value1));
+            rows[0].querySelector('td').textContent = value1;
+        }
+
+        if (rows[1]) {
+            rows[1].querySelector('th').textContent = propertyName2;
+            // 小数の場合は小数点第二位で四捨五入し、小数点第一位まで表示
+            let value2 = propertyValue2;
+            if (typeof value2 === 'string' && value2.endsWith('%')) {
+                let num = parseFloat(value2.replace('%', ''));
+                num = Math.round(num * 10) / 10; // 四捨五入して小数点第一位まで
+                value2 = num.toFixed(1) + '%';
+            }
+            rows[1].querySelector('td').textContent = value2;
+        }
+        // 調律ランク
+        this.tuningRankSelect.value = rank;
+
+        // シントナイズ効果の更新
+        this.updateSyntonize();
+
+        // 調律ランク変更時にシントナイズ効果を更新
+        this.tuningRankSelect.onchange = () => this.updateSyntonize();
+
+        this.tabSelecterModalView.hide();
+
+        // イベント発火
+        const event = new CustomEvent('weaponChanged', { detail: weaponDB });
+        document.dispatchEvent(event);
+    }
+
+    updateSyntonize(weaponDB = this.selectedWeaponDB) {
+        let desc = weaponDB.desc || '';
+        desc = desc.replace(/<span[^>]*>([\d.]+(?:%|)(?:\/[\d.]+(?:%|)){4})<\/span>/g, (match, p1) => {
+            const vals = p1.split('/');
+            const idx = Math.max(0, Math.min(4, Number(this.tuningRankSelect.value) - 1));
+            return `<span>${vals[idx]}</span>`;
+        });
+        this.syntonizeElem.innerHTML = desc || '';
+        // イベント発火
+        const {id, weaponType} = weaponDB;
+        const rank = this.tuningRankSelect.value;
+        const event = new CustomEvent('syntonizeChanged', { detail:{id, weaponType, rank} });
+        document.dispatchEvent(event);
+    }
+
+    updateTuningRank() {
+        // 調律ランク変更時の処理（必要に応じて拡張）
+        // 例: ステータスや説明文の更新
+        // this.selectedWeapon, this.tuningRankSelect.value
+    }
+}
+
+
+
+
+/**
+ * SubtotalListManager
+ * echo-listの合計Substatus一覧を管理
+ * echo-listが更新されるたびに、各ステータスの合計値を計算し、リストに反映
+ */
+class SubtotalListManager {
+    constructor(echoScoreCalculator) {
+        this.echoScoreCalculator = echoScoreCalculator || new EchoScoreCalculator();
+        this.echoLis = document.querySelectorAll('#echo-list li');
+        this.totalScoreElem = document.querySelector('#total-score p');
+        
+        // base status input id map
+        this.baseStatusInputIds = {
+            "HP": "chara-hp",
+            "攻撃力": "chara-atk",
+            "防御力": "chara-def"
+        };
+        this.baseStatusInputs = {};
+        for (const key in this.baseStatusInputIds) {
+            const id = this.baseStatusInputIds[key];
+            this.baseStatusInputs[key] = document.getElementById(id);
+        }
+
+        // subtotal-score-list内のinput要素を取得し、data-attributeをkey、nextSiblingをvalueとするオブジェクトを作成
+        this.subTotalScoreElems = {};
+        document.querySelectorAll('#subtotal-score-list input').forEach(input => {
+            const key = input.dataset.attribute;
+            if (key) {
+                // nextSiblingがテキストノードの場合は次の要素ノードを探す
+                let elem = input.nextSibling;
+                while (elem && elem.nodeType !== 1) {
+                    elem = elem.nextSibling;
+                }
+                this.subTotalScoreElems[key] = elem;
+            }
+        });
+
+        // サブステータス名とinput要素のIDの対応
+        this.statusMap = [
+            { label: "HP", id: "echo-total-hp" },
+            { label: "攻撃力", id: "echo-total-atk" },
+            { label: "防御力", id: "echo-total-def" },
+            { label: "共鳴効率", id: "echo-total-energy-regen" },
+            { label: "クリティカル", id: "echo-total-critical-per" },
+            { label: "クリティカルダメージ", id: "echo-total-critical-dmg" },
+            { label: "通常攻撃ダメージアップ", id: "echo-total-normal-atk" },
+            { label: "重撃ダメージアップ", id: "echo-total-heavy-atk" },
+            { label: "共鳴スキルダメージアップ", id: "echo-total-skill-atk" },
+            { label: "共鳴解放ダメージアップ", id: "echo-total-liberation-atk" }
+        ];
+        // 合計値を格納
+        this.subTotals = {};
+        // input要素参照
+        this.inputs = {};
+        this.statusMap.forEach(item => {
+            this.inputs[item.label] = document.getElementById(item.id);
+        });
+    }
+
+    /**
+     * echo-listのli要素からサブステータス合計を計算し、反映
+     */
+    update() {
+        // 初期化
+        this.statusMap.forEach(item => {
+            this.subTotals[item.label] = 0;
+        });
+
+
+        this.echoLis.forEach(li => {
+            // sub-statusテーブルのtbody > tr
+            li.querySelectorAll('.sub-status tbody tr').forEach(tr => {
+                const th = tr.querySelector('th');
+                const td = tr.querySelector('td');
+
+                const label = th.textContent.trim();
+                let value = td.textContent.trim();
+                // 数値部分だけ抽出
+                let num = 0;
+                if (value.endsWith('%')) {
+                    num = parseFloat(value.replace('%', ''));
+                }
+                else {
+                    // 基礎値参照して%換算
+                    const baseInput = this.baseStatusInputs[label];
+                    const base = baseInput ? parseFloat(baseInput.value) : 0;
+                    num = base ? (parseFloat(value) / base * 100) : 0;
+                }
+                this.subTotals[label] += num;
+            });
+        });
+
+        // inputに反映
+        this.statusMap.forEach(item => {
+            const label = item.label;
+            const input = this.inputs[label];
+            let val = this.subTotals[label];
+            val = val.toFixed(1) + '%';
+            input.value = val;
+
+            // labelに該当するfactorを取得して、比重値が0だったら liに disabled という classを付与（トグル式）
+            const factorInput = this.echoScoreCalculator.factorInputs[label];
+            const factorValue = factorInput ? parseFloat(factorInput.value) : 0;
+            input.parentNode.classList.toggle('disabled', factorValue === 0);
+        });
+
+        this.updateSubTotalScores()
+        this.updateTotalScore();
+    }
+    updateSubTotalScores() {
+        // 各input（合計値input）についてスコアを計算し、subTotalScoreElemsに反映
+        Object.entries(this.inputs).forEach(([label, input]) => {
+            // input.valueは "xx.x%" 形式なので %を除去して数値化
+            let percentValue = parseFloat((input.value || "0").replace("%", ""));
+
+            // factor取得
+            const factor = parseFloat(this.echoScoreCalculator.factorInputs[label].value) || 0.0;
+
+            // スコア計算
+            let score = percentValue * factor;
+            score = Math.floor(score * 10) / 10;
+
+            // subTotalScoreElems[label] に反映（要素があれば）
+            this.subTotalScoreElems[label].textContent = score.toFixed(1);
+
+            // トグル: 0ならdisabledを付与、0以外なら外す
+            this.subTotalScoreElems[label].parentNode.classList.toggle('disabled', score === 0);
+        });
+    }
+    updateTotalScore(){
+        // this.subTotalScoreElems のスコアを合計して、this.totalScoreElem に適用
+        let total = 0;
+        Object.values(this.subTotalScoreElems).forEach(elem => {
+            if (elem && elem.textContent) {
+            const val = parseFloat(elem.textContent);
+            if (!isNaN(val)) total += val;
+            }
+        });
+        this.totalScoreElem.textContent = Math.floor(total).toString();
+    }
+}
+
+
+class SubtotalScoreListView {
+    constructor(defaultFactors, customFactors, scoreFactorType) {
+        this.charaDB = gameDataManager.getCharactersDB();
+        this.container = document.getElementById('subtotal-score-list');
+        this.factorTypeSelect = document.getElementById('factor-type-select');
+        this.inputs = {
+            "HP": document.getElementById('factor-hp'),
+            "攻撃力": document.getElementById('factor-atk'),
+            "防御力": document.getElementById('factor-def'),
+            "共鳴効率": document.getElementById('factor-energy-regen'),
+            "クリティカル": document.getElementById('factor-critical-per'),
+            "クリティカルダメージ": document.getElementById('factor-critical-dmg'),
+            "通常攻撃ダメージアップ": document.getElementById('factor-normal-atk'),
+            "重撃ダメージアップ": document.getElementById('factor-heavy-atk'),
+            "共鳴スキルダメージアップ": document.getElementById('factor-skill-atk'),
+            "共鳴解放ダメージアップ": document.getElementById('factor-liberation-atk')
+        };
+        this.defaultFactors = {...defaultFactors}
+        this.customFactors = {...customFactors };
+        this.setFactorType(scoreFactorType); // 初期はデフォルトファクターを設定
+        this.setType(scoreFactorType);
+
+        this.observeTypeChange();
+        this.observeFactorChange();
+    }
+
+    setFactorType(type) {
+        let isReadOnly = false;
+        if (type === 'default') {
+            this.setFactors(this.defaultFactors);
+            isReadOnly = true;
+        }
+        else if (type === 'custom') {
+            this.setFactors(this.customFactors);
+        }
+        Object.values(this.inputs).forEach(input => {
+            input.readOnly = isReadOnly;
+        });
+    }
+
+    observeTypeChange() {
+        this.onTypeChange((type) => {
+            this.setFactorType(type);
+        });
+    }
+    observeFactorChange() {
+        this.onFactorChange((e) => {
+            const input = e.target;
+            // 小数点第一まで表示（例: 1 → 1.0, 1.23 → 1.2）
+            const value = parseFloat(input.value > 0 ? input.value : 0 );
+            if (!isNaN(value)) {
+                input.value = value.toFixed(1); // 小数第一位にフォーマット
+            }
+            // let val = parseFloat(input.value);
+            // if (!isNaN(val)) {
+            //     // 1や1.0なども必ず1.0形式で表示
+            //     input.value = (Math.floor(val * 10) / 10).toFixed(1);
+            // }
+        });
+    }
+
+    getFactors() {
+        const factors = {};
+        for (const key in this.inputs) {
+            factors[key] = parseFloat(this.inputs[key].value) || 0;
+        }
+        return factors;
+    }
+
+    setFactors(factorObj = {}) {
+        const factors = {...this.defaultFactors, ...factorObj };
+        for (const key in this.inputs) {
+            let value;
+            if (!factors[key]) {
+                value = 0.0; // デフォルト値を設定
+            }
+            else {
+                value = factors[key];
+            }
+            this.inputs[key].value = parseFloat(value).toFixed(1); // 小数第一位にフォーマット
+        }
+    }
+
+    setType(type) {
+        this.factorTypeSelect.value = type;
+    }
+
+    getType() {
+        return this.factorTypeSelect.value;
+    }
+
+    onTypeChange(callback) {
+        this.factorTypeSelect.addEventListener('change', () => {
+            callback(this.getType());
+        });
+    }
+
+    onFactorChange(callback) {
+        Object.values(this.inputs).forEach(input => {
+            input.addEventListener('change', (e) => {
+                callback(e);
+            });
+        });
+    }
+}
+
 
 
 class ResonanceChainController {
@@ -182,65 +747,78 @@ new ResonanceChainController(((chainNum) => {
 }))
 
 
-class OCRWindow {
-    constructor(ocrResultCallback) {
-        this.ocrResultCallback = ocrResultCallback || (() => {});
-        this.imgData = null;
+/* #weapon-data のUI機能を担当するクラス
+HTMLの構成
+```
+        <div id="weapon-data">
+            <h2>Weapon Name
+                <button id="weapon-change-button">
+                    <svg width="32" height="32"><use href="./img/common/icons/icons.svg#change"></use></svg>
+                </button>
+            </h2>
+            <figure class="rank5"><img src="./img/common/weapon/Broadblade_0011.webp" width="132" height="132"></figure>
+            <table>
+                <tr><th>攻撃力</th><td>500</td></tr>
+                <tr><th>クリティカルダメージ</th><td>24.4%</td></tr>
+            </table>
+            <p id="weapon-tuning-rank"><label>調律ランク<select name="">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+            </select></label></p>
+            <p class="syntonize" data-buff="30%">攻撃力12%アップ。通常攻撃発動時、以下の効果を獲得：自身の与ダメージが目標の防御力を8%無視する他、自身が直接与える【騒光効果】ダメージに、50%のダメージブーストを付与する。この効果は6秒間持続し、再獲得すると持続時間がリセットされる。</p>
+        </div>
+```
+機能
+- 武器の変更
+    - #weapon-change-button をクリックすると、武器の一覧が表示される
+    - 武器の画像表示
+- 武器の調律ランクの変更
+
+更新箇所
+*/
+
+
+
+
+
+// View: OCRWindowView
+class OCRWindowView {
+    constructor() {
+        this.characterCardSection = document.getElementById('character-card-section');
         this.ocrWindow = document.getElementById('echo-scan-window');
         this.pasteArea = document.getElementById('ocr-paste-area');
         this.calcScoreButton = document.getElementById('calc-score-button');
         this.resultTextArea = document.getElementById('ocr-result-textarea');
         this.closeBtn = document.getElementById('close-ocr-window');
         this.matchedEchoThumb = document.getElementById('matched-echo-thumb');
+        this.cropedPasteImage = document.getElementById('croped-paste-image');
         this.reloadBtn = document.createElement('button');
         this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 0.0);
         this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 0.0);
         this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, 0);
-
-        this.init();
+        this.cropInputsAppended = false;
+        this.echoCropInputsAppended = false;
+        this.echoCropPreviewImg = null;
+        this.echoCropInputs = null;
+        this.cropInputs = {};
     }
-
-    init() {
-        this.setupControls();
-        this.addEventListeners();
-    }
-
-    // calcScore() {
-    //     /*
-
-    //     1. OCRWindow を閉じる
-    //     2. 
-    //     */
-    // }
-
     setupControls() {
         this.reloadBtn.innerText = '再読み込み';
         this.reloadBtn.style.margin = '8px 0';
-
         this.ocrWindow.appendChild(this.blurControl.wrapper);
         this.ocrWindow.appendChild(this.sharpControl.wrapper);
         this.ocrWindow.appendChild(this.contrastControl.wrapper);
         this.ocrWindow.appendChild(this.reloadBtn);
-
         document.body.appendChild(this.ocrWindow);
     }
-
-    addEventListeners() {
-        this.closeBtn.onclick = () => this.ocrWindow.style.display = 'none';
-        this.pasteArea.addEventListener('paste', (e) => {
-            this.handlePaste(e)
-            // console.log('OCRWindow: Paste event detected', e.target);
-        });
-        this.reloadBtn.onclick = () => this.applyFiltersAndOCR();
-    }
-
     createSlider(labelText, min, max, step, defaultValue, unit = '') {
         const wrapper = document.createElement('div');
         wrapper.style.marginBottom = '6px';
-
         const label = document.createElement('label');
         label.innerText = labelText;
-
         const slider = document.createElement('input');
         slider.type = 'range';
         slider.min = min;
@@ -248,7 +826,6 @@ class OCRWindow {
         slider.step = step;
         slider.value = defaultValue;
         slider.style.width = '60%';
-
         const input = document.createElement('input');
         input.type = 'number';
         input.min = min;
@@ -257,7 +834,6 @@ class OCRWindow {
         input.value = defaultValue;
         input.style.width = '60px';
         input.style.marginLeft = '8px';
-
         slider.oninput = () => (input.value = slider.value);
         input.oninput = () => {
             let v = parseFloat(input.value);
@@ -265,226 +841,81 @@ class OCRWindow {
             if (v > max) v = max;
             slider.value = v;
         };
-
         wrapper.appendChild(label);
         wrapper.appendChild(slider);
         wrapper.appendChild(input);
-
         if (unit) {
             const unitElement = document.createElement('span');
             unitElement.innerText = unit;
             unitElement.style.marginLeft = '4px';
             wrapper.appendChild(unitElement);
         }
-
         return { wrapper, slider, input };
     }
-
-    handlePaste(event) {
-        const items = event.clipboardData.items;
-        this.ocrWindow.style.display = 'block'; 
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const file = items[i].getAsFile();
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    this.imgData = ev.target.result;
-                    this.applyFiltersAndOCR();
-                };
-                reader.readAsDataURL(file);
-                break;
-            }
+    showWindow() {
+        this.ocrWindow.style.display = 'block';
+    }
+    hideWindow() {
+        this.ocrWindow.style.display = 'none';
+    }
+    setResultText(text) {
+        this.resultTextArea.value = text;
+    }
+    setCropedPasteImage(src, w, h) {
+        this.cropedPasteImage.src = src;
+        this.cropedPasteImage.style.width = w + 'px';
+        this.cropedPasteImage.style.height = h + 'px';
+    }
+    setMatchedEchoThumb(src) {
+        this.matchedEchoThumb.src = src;
+    }
+    // --- Crop UI for debug ---
+    setupCropInputs(defaults, slotIndex, onChange) {
+        if (!this.cropInputsAppended) {
+            ['swRate', 'shRate', 'sxRate', 'syRate'].forEach(key => {
+                const wrapper = document.createElement('div');
+                wrapper.style.marginBottom = '4px';
+                wrapper.innerHTML = `<label>${key}</label>
+                    <input type="number" value="${defaults[key][slotIndex]||defaults[key]}" min="0.01" max="1" step="0.001" style="width:60px;margin-left:8px;">`;
+                this.ocrWindow.appendChild(wrapper);
+                this.cropInputs[key] = wrapper.querySelector('input');
+                this.cropInputs[key].onchange = onChange;
+            });
+            this.cropInputsAppended = true;
         }
     }
-    applyFiltersAndOCR() {
-        const self = this;
-        if (!this.imgData) return;
-
-        const img = new Image();
-        img.onload = () => {
-            let sx = 0, sy = 0, sw = img.width, sh = img.height;
-
-            // 幅が1000pxを超える場合、左下の1体分だけ切り出し
-            const isLarge = img.width > 1000;
-            if (isLarge) {
-                // 画像から音骸特定 ---------------------------------------
-                // Echo画像切り出し・類似画像検索
-                this.showEchoCropAndMatchUI(img);
-                
-
-                // フィルター処理  ---------------------------------------
-                // 1枚目のデフォルト値
-                const defaults = {
-                    swRate: 0.163,
-                    shRate: 0.3,
-                    sxRate: 0.033,
-                    syRate: 0.03
-                };
-                // Debug Tool の inputをまとめて生成
-                if (!this.cropInputsAppended) {
-                    ['swRate', 'shRate', 'sxRate', 'syRate'].forEach(key => {
-                        const wrapper = document.createElement('div');
-                        wrapper.style.marginBottom = '4px';
-                        wrapper.innerHTML = `<label>${key}</label>
-                            <input type="number" value="${defaults[key]}" min="0.01" max="1" step="0.001" style="width:60px;margin-left:8px;">`;
-                        this.ocrWindow.appendChild(wrapper);
-                        this[key + 'Input'] = wrapper.querySelector('input');
-                        this[key + 'Input'].onchange = () => this.applyFiltersAndOCR();
-                    });
-                    this.cropInputsAppended = true;
-                }
-                // フィルターの初期値設定
-                // this.blurControl.slider.value = 0;
-                // this.sharpControl.slider.value = 1.5;
-                // this.contrastControl.slider.value = -50;
-                
-                // 値取得
-                const swRate = parseFloat(this.swRateInput.value);
-                const shRate = parseFloat(this.shRateInput.value);
-                const sxRate = parseFloat(this.sxRateInput.value);
-                const syRate = parseFloat(this.syRateInput.value);
-
-                sw = Math.floor(img.width * swRate);
-                sh = Math.floor(img.height * shRate);
-                sx = Math.floor(img.width * sxRate);
-                sy = img.height - sh - Math.floor(img.height * syRate);
-                
-            }
-            else{
-                // this.blurControl.slider.value = 0.5;
-                // this.sharpControl.slider.value = 0;
-                // this.contrastControl.slider.value = 0;
-            }
-
-            // --- canvasを2倍の大きさで作成 ---
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const scale = 2;
-            canvas.width = sw * scale;
-            canvas.height = sh * scale;
-
-            ctx.filter = `blur(${this.blurControl.slider.value}px)`;
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);  // 倍拡大して描画
-            ctx.filter = 'none';
-            if (isLarge) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 1)'; // Solid black
-                ctx.fillRect(0, 0, canvas.width * 0.46, canvas.height * 0.36); // Fill top-left corner
-            }
-
-            
-
-            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let data = imageData.data;
-            const w = canvas.width, h = canvas.height;
-            const copy = new Uint8ClampedArray(data);
-
-            const sharp = parseFloat(this.sharpControl.slider.value);
-            if (sharp > 0) {
-                const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-                for (let y = 1; y < h - 1; y++) {
-                    for (let x = 1; x < w - 1; x++) {
-                        for (let c = 0; c < 3; c++) {
-                            let i = (y * w + x) * 4 + c, sum = 0, k = 0;
-                            for (let ky = -1; ky <= 1; ky++) {
-                                for (let kx = -1; kx <= 1; kx++) {
-                                    let ni = ((y + ky) * w + (x + kx)) * 4 + c;
-                                    sum += copy[ni] * kernel[k++];
-                                }
-                            }
-                            data[i] = Math.min(255, Math.max(0, sum * sharp));
-                        }
-                    }
-                }
-            }
-
-            const contrast = parseFloat(this.contrastControl.slider.value);
-            if (contrast !== 0) {
-                const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-                for (let i = 0; i < data.length; i += 4) {
-                    for (let j = 0; j < 3; j++) {
-                        data[i + j] = Math.min(255, Math.max(0, factor * (data[i + j] - 128) + 128));
-                    }
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
-
-            // --- ここから画像プレビュー表示処理 ---
-            // 既存のプレビューがあれば削除
-            if (this.previewImg && this.previewImg.parentNode) {
-                this.previewImg.parentNode.removeChild(this.previewImg);
-            }
-            this.previewImg = document.createElement('img');
-            this.previewImg.src = canvas.toDataURL();
-            this.previewImg.alt = '加工済み画像プレビュー';
-            this.previewImg.style.display = 'block';
-            this.previewImg.style.margin = '10px auto';
-            this.previewImg.style.maxWidth = '100%';
-            this.previewImg.style.width = (sw) + 'px';
-            this.previewImg.style.height = (sh) + 'px';
-            console.log(sw, sh)
-            // ocrWindowの先頭に挿入
-            this.ocrWindow.appendChild(this.previewImg);
-            // --- 画像プレビューここまで ---
-            
-            // --- OCR処理開始 ---
-            const { createWorker } = Tesseract;
-            (async () => {
-                const worker = await createWorker(['eng', 'jpn']);
-                const { data: { text } } = await worker.recognize(canvas, {
-                    tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
-                    preserve_interword_spaces: true,
-                    // logger: m => console.log(m),
-                    // errorHandler: err => {
-                    //     self.resultTextArea.value = 'OCRエラー: ' + err.message;
-                    // }
-                })
-                
-                let cleanedText = self.cleanText(text);
-                if (isLarge) {
-                    cleanedText = 'NoName\nNone\n' + cleanedText;
-                }
-                self.resultTextArea.value = cleanedText;
-                self.ocrResultCallback(new OcrParser(cleanedText).parse());
-            })();
-
-            // Tesseract.recognize(canvas, 'jpn', {
-            //     logger: m => console.log(m),
-            // })
-            // .then(({ data: { text } }) => {
-            //     text = this.cleanText(text);
-            //     if (isLarge) {
-            //         text = 'NoName\nNone\n' + text;
-            //     }
-            //     this.resultTextArea.value = text;
-            //     this.ocrResultCallback(new OcrParser(text).parse());
-            // })
-            // .catch((err) => {
-            //     this.resultTextArea.value = 'OCRエラー: ' + err.message;
-            // });
-        };
-
-        img.src = this.imgData;
+    updateCropInputs(defaults, slotIndex) {
+        this.cropInputs.swRate.value = defaults.swRate;
+        this.cropInputs.shRate.value = defaults.shRate;
+        this.cropInputs.sxRate.value = defaults.sxRate[slotIndex];
+        this.cropInputs.syRate.value = defaults.syRate;
     }
-    cleanText(text) {
-        return text
-            .replace(/[\u200B-\u200D\uFEFF]/g, '') // ゼロ幅文字などを除去
-            .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F]/g, '') // 改行(\x0A)以外の制御文字を除去
-            .replace(/(?<! ) (?! )/g, '') // 連続していない単発の空白だけ除去
-            .replace(/\r\n|\r/g, '\n') // 改行コードを\nに統一
-            .replace(/[ ]*\n[ ]*/g, '\n') // 改行前後の空白を除去
-            .trim(); // 前後の空白・改行を除去
+    // --- Echo Crop UI for debug ---
+    setupEchoCropInputs(cropValues, slotIndex, canvas, onChange) {
+        if (!this.echoCropInputsAppended) {
+            const echoCropWrapper = document.createElement('div');
+            echoCropWrapper.style.margin = '8px 0';
+            echoCropWrapper.innerHTML = `
+                <label>Echo画像切り出し位置 (x, y, w, h): </label>
+                <input type="number" min="0" max="${canvas.width}" step="1" value="${cropValues.x[slotIndex]}" style="width:60px;" id="echo-crop-x">
+                <input type="number" min="0" max="${canvas.height}" step="1" value="${cropValues.y}" style="width:60px;" id="echo-crop-y">
+                <input type="number" min="1" max="${canvas.width}" step="1" value="${cropValues.w}" style="width:60px;" id="echo-crop-w">
+                <input type="number" min="1" max="${canvas.height}" step="1" value="${cropValues.h}" style="width:60px;" id="echo-crop-h">
+            `;
+            this.ocrWindow.appendChild(echoCropWrapper);
+            this.echoCropInputs = {
+                x: document.getElementById('echo-crop-x'),
+                y: document.getElementById('echo-crop-y'),
+                w: document.getElementById('echo-crop-w'),
+                h: document.getElementById('echo-crop-h')
+            };
+            ['x', 'y', 'w', 'h'].forEach(key => {
+                this.echoCropInputs[key].addEventListener('change', () => onChange(canvas));
+            });
+            this.echoCropInputsAppended = true;
+        }
     }
-    showEchoCropAndMatchUI(img) {
-        // img: HTMLImageElement (ペースト画像)
-        // まずimgからcanvasを作成
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        const echoImgDir = './img/common/echo/';
-        // プレビュー画像を保持
+    updateEchoCropPreview(canvas) {
         if (!this.echoCropPreviewImg) {
             this.echoCropPreviewImg = document.createElement('img');
             this.echoCropPreviewImg.alt = 'Echo Crop Preview';
@@ -493,62 +924,272 @@ class OCRWindow {
             this.echoCropPreviewImg.style.maxWidth = '100%';
             this.ocrWindow.appendChild(this.echoCropPreviewImg);
         }
+        const cropX = parseInt(this.echoCropInputs.x.value, 10) || 0;
+        const cropY = parseInt(this.echoCropInputs.y.value, 10) || 0;
+        const cropW = parseInt(this.echoCropInputs.w.value, 10) || canvas.width;
+        const cropH = parseInt(this.echoCropInputs.h.value, 10) || canvas.height;
+        const echoCropCanvas = document.createElement('canvas');
+        echoCropCanvas.width = cropW;
+        echoCropCanvas.height = cropH;
+        echoCropCanvas.getContext('2d').drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        this.echoCropPreviewImg.src = echoCropCanvas.toDataURL();
+    }
+}
 
-        // Always define a default updateEchoCropPreview function to avoid errors
-        this.updateEchoCropPreview = (canvasRef) => {
-            // Default: just update the preview image
-            const cropX = this.echoCropInputs && this.echoCropInputs.x ? parseInt(this.echoCropInputs.x.value, 10) || 0 : 0;
-            const cropY = this.echoCropInputs && this.echoCropInputs.y ? parseInt(this.echoCropInputs.y.value, 10) || 0 : 0;
-            const cropW = this.echoCropInputs && this.echoCropInputs.w ? parseInt(this.echoCropInputs.w.value, 10) || canvasRef.width : canvasRef.width;
-            const cropH = this.echoCropInputs && this.echoCropInputs.h ? parseInt(this.echoCropInputs.h.value, 10) || canvasRef.height : canvasRef.height;
+// Controller: OCRWindowController
+class OCRWindowController {
+    constructor() {
+        this.imgData = null;
+        this.img = new Image();
+        this.ocrResultData = null; // EchoModelインスタンスを格納
+        this.echoImageList = null;
 
-            const echoCropCanvas = document.createElement('canvas');
-            echoCropCanvas.width = cropW;
-            echoCropCanvas.height = cropH;
-            echoCropCanvas.getContext('2d').drawImage(canvasRef, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-            this.echoCropPreviewImg.src = echoCropCanvas.toDataURL();
-        };
-
-        if (!this.echoCropInputsAppended) {
-            // UI for echo crop
-            const echoCropWrapper = document.createElement('div');
-            echoCropWrapper.style.margin = '8px 0';
-            echoCropWrapper.innerHTML = `
-                <label>Echo画像切り出し位置 (x, y, w, h): </label>
-                <input type="number" min="0" max="${canvas.width}" step="1" value="28" style="width:60px;" id="echo-crop-x">
-                <input type="number" min="0" max="${canvas.height}" step="1" value="651" style="width:60px;" id="echo-crop-y">
-                <input type="number" min="1" max="${canvas.width}" step="1" value="180" style="width:60px;" id="echo-crop-w">
-                <input type="number" min="1" max="${canvas.height}" step="1" value="180" style="width:60px;" id="echo-crop-h">
-            `;
-            this.ocrWindow.appendChild(echoCropWrapper);
-            this.echoCropInputs = {
-                x: echoCropWrapper.querySelector('#echo-crop-x'),
-                y: echoCropWrapper.querySelector('#echo-crop-y'),
-                w: echoCropWrapper.querySelector('#echo-crop-w'),
-                h: echoCropWrapper.querySelector('#echo-crop-h')
-            };
-            // 値変更時にプレビュー更新
-            ['x', 'y', 'w', 'h'].forEach(key => {
-                this.echoCropInputs[key].addEventListener('input', () => this.updateEchoCropPreview(canvas));
-            });
-            this.echoCropInputsAppended = true;
+        this.view = new OCRWindowView();
+        this.isDebugMode = typeof isDebugMode !== "undefined" ? isDebugMode : false;
+        this.init();
+    }
+    dispatchLoadedOcrEvent(ocrResult, slotIndex){
+        const event = new CustomEvent('loadedOCR', { detail: { ocrResult, slotIndex } });
+        document.dispatchEvent(event);
+    }
+    init() {
+        if (isDebugMode) {
+            this.view.setupControls();
+        }
+        this.addEventListeners();
+    }
+    addEventListeners() {
+        if (isDebugMode) {
+            this.view.closeBtn.onclick = () => this.view.hideWindow();
+            this.view.reloadBtn.onclick = () => this.applyFiltersAndOCR();
         }
 
-        // 初回または値変更時にプレビュー更新
-        this.updateEchoCropPreview(canvas);
+        this.view.pasteArea.addEventListener('paste', (e) => this.handlePaste(e));
+        this.view.pasteArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.view.characterCardSection.classList.remove('dragover');
+            this.handlePaste(e);
+        });
+        
+        this.view.characterCardSection.addEventListener('dragover', (e) => {
+            // const isClassAdded = this.view.characterCardSection.classList.contains('dragover')
+            // if (isClassAdded) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this.view.characterCardSection.classList.add('dragover');
+        });
+        this.view.characterCardSection.addEventListener('dragleave', (e) => {
+            // 子要素からのdragleaveは無視する
+            if (!e.relatedTarget || !this.view.characterCardSection.contains(e.relatedTarget)) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.view.characterCardSection.classList.remove('dragover');
+            }
+        });
+        this.view.characterCardSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.view.characterCardSection.classList.remove('dragover');
+        });
+    }
+    handlePaste(event) {
+        if (isDebugMode) {
+            this.view.showWindow();
+        }
+        
+        let items = [];
+        if (event.type === 'paste') {
+            items = event.clipboardData.items;
+        } else if (event.type === 'drop') {
+            items = event.dataTransfer.items;
+        }
+        if (!items[0]?.type?.startsWith('image/')) {
+            alert('画像データが見つかりませんでした。画像を貼り付けまたはドロップしてください。');
+            return;
+        }
+        const imageFile = items[0].getAsFile();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            this.imgData = ev.target.result;
+            this.applyFiltersAndOCRs();
+        };
+        reader.readAsDataURL(imageFile);
+    }
+    applyFiltersAndOCRs() {
+        const imgData = this.imgData;
+        if (!imgData) return;
+        this.img.onload = () => {
+            const isLarge = this.img.width > 1000;
+            if (isLarge) {
+                // this.applyFiltersAndOCR(1);
+                for (let index = 0; index < 5; index++) {
+                    this.applyFiltersAndOCR(index);
+                }
+            } else {
+                this.applyFiltersAndOCR(-1);
+            }
+        };
+        this.img.src = imgData;
+    }
+    applyFiltersAndOCR(slotIndex = 0, isRetry = false) {
+        const img = this.img;
+        const isLarge = this.img.width > 1000;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        // --- Crop ---
+        if (isLarge) {
+            const defaults = {
+                swRate: 0.163,
+                shRate: 0.3,
+                sxRate: [0.033, 0.23, 0.424, 0.619, 0.814],
+                syRate: 0.03
+            };
+            this.view.setupCropInputs(defaults, slotIndex, () => this.applyFiltersAndOCR(img, isLarge));
+            this.view.updateCropInputs(defaults, slotIndex);
+            const swRate = parseFloat(this.view.cropInputs.swRate.value);
+            const shRate = parseFloat(this.view.cropInputs.shRate.value);
+            const sxRate = parseFloat(this.view.cropInputs.sxRate.value);
+            const syRate = parseFloat(this.view.cropInputs.syRate.value);
+            sw = Math.floor(img.width * swRate);
+            sh = Math.floor(img.height * shRate);
+            sx = Math.floor(img.width * sxRate);
+            sy = img.height - sh - Math.floor(img.height * syRate);
+        }
+        // --- Canvas ---
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const scale = 4;
+        canvas.width = sw * scale;
+        canvas.height = sh * scale;
+        ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
+        ctx.filter = 'none';
+        if (isLarge) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+            ctx.fillRect(0, 0, canvas.width * 0.47, canvas.height * 0.36);
+        }
+        // --- Sharp/Contrast ---
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let data = imageData.data;
+        const w = canvas.width, h = canvas.height;
+        const copy = new Uint8ClampedArray(data);
+        const sharp = parseFloat(this.view.sharpControl.slider.value);
+        if (sharp > 0) {
+            const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    for (let c = 0; c < 3; c++) {
+                        let i = (y * w + x) * 4 + c, sum = 0, k = 0;
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                let ni = ((y + ky) * w + (x + kx)) * 4 + c;
+                                sum += copy[ni] * kernel[k++];
+                            }
+                        }
+                        data[i] = Math.min(255, Math.max(0, sum * sharp));
+                    }
+                }
+            }
+        }
+        const contrastInput = this.view.contrastControl.slider;
+        if (!isRetry) contrastInput.value = '0';
 
-        // echo画像一覧を取得
+        let contrast = parseFloat(contrastInput.value);
+        if (contrast !== 0) {
+            const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            for (let i = 0; i < data.length; i += 4) {
+                for (let j = 0; j < 3; j++) {
+                    data[i + j] = Math.min(255, Math.max(0, factor * (data[i + j] - 128) + 128));
+                }
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        // --- Preview ---
+        this.view.setCropedPasteImage(canvas.toDataURL(), sw, sh);
+        // --- OCR ---
+        const { createWorker } = Tesseract;
+        (async () => {
+            const worker = await createWorker(['eng', 'jpn']);
+            const { data: { text } } = await worker.recognize(canvas, {
+                tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+                preserve_interword_spaces: true,
+            });
+            let cleanedText = this.cleanText(text);
+            if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;
+            this.view.setResultText(cleanedText);
+            // EchoModelインスタンスを格納
+            this.ocrResultData = new OcrParser(cleanedText).parse();
+
+            // --- 自己チェック＆contrast自動調整 ---
+            const check = this.ocrResultData.selfCheck();
+            if (!check.valid && contrast > -50) {
+                // contrastを-10下げて再実行
+                contrastInput.value = contrast - 10;
+                this.applyFiltersAndOCR(slotIndex, true);
+                return;
+            }
+            // 成功 or contrastが-50まで下がったらcallback
+            if (isLarge) {
+                // TODO: Largeだから、ではなく一律不足情報を補完する関数を設けてやる（updateFromOcr側の処理をこっちに持ってくる）
+                this.showEchoCropAndMatchUI(img, slotIndex);
+            } else {
+                this.dispatchLoadedOcrEvent(this.ocrResultData, slotIndex);
+            }
+        })();
+    }
+    cleanText(text) {
+        return text
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F]/g, '')
+            .replace(/(?<! ) (?! )/g, '')
+            .replace(/\r\n|\r/g, '\n')
+            .replace(/[ ]*\n[ ]*/g, '\n')
+            .trim();
+    }
+    showEchoCropAndMatchUI(img, slotIndex) {
+        const cost = this.ocrResultData?.cost || 1;
+        const echoImgDir = './img/common/echo/';
+        const cropValues = {
+            x: [22, 397, 771, 1145, 1518],
+            y: 651,
+            w: 190,
+            h: 180,
+        };
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        if (this.isDebugMode) {
+            this.view.setupEchoCropInputs(cropValues, slotIndex, canvas, (canvasRef) => this.view.updateEchoCropPreview(canvasRef));
+            this.view.updateEchoCropPreview(canvas);
+        } else {
+            this.view.echoCropInputs = {
+                x: { value: cropValues.x[slotIndex] },
+                y: { value: cropValues.y },
+                w: { value: cropValues.w },
+                h: { value: cropValues.h }
+            };
+        }
         if (!this.echoImageList) {
-            const echoData = gameDataManager.getEchoData();
+            const echoData = gameDataManager.getEchosDB();
             this.echoImageList = {
-                cost1: echoData.filter(e => e.cost === 1).map(e => echoImgDir + 'cost1/' + e.id + '.webp'), 
+                cost1: echoData.filter(e => e.cost === 1).map(e => echoImgDir + 'cost1/' + e.id + '.webp'),
                 cost3: echoData.filter(e => e.cost === 3).map(e => echoImgDir + 'cost3/' + e.id + '.webp'),
                 cost4: echoData.filter(e => e.cost === 4).map(e => echoImgDir + 'cost4/' + e.id + '.webp'),
             };
         }
-
-        // echo画像の類似度判定
+        this.updateEchoMatch(canvas, this.echoImageList['cost' + cost], slotIndex);
+    }
+    updateEchoMatch(canvas, echoImageList, slotIndex) {
+        const cropX = parseInt(this.view.echoCropInputs.x.value, 10) || 0;
+        const cropY = parseInt(this.view.echoCropInputs.y.value, 10) || 0;
+        const cropW = parseInt(this.view.echoCropInputs.w.value, 10) || canvas.width;
+        const cropH = parseInt(this.view.echoCropInputs.h.value, 10) || canvas.height;
+        const echoCropCanvas = document.createElement('canvas');
+        echoCropCanvas.width = cropW;
+        echoCropCanvas.height = cropH;
+        echoCropCanvas.getContext('2d').drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
         const getImageData = (imgElem, w, h) => {
             const c = document.createElement('canvas');
             c.width = w; c.height = h;
@@ -564,51 +1205,6 @@ class OCRWindow {
             }
             return diff;
         };
-
-        
-        // // ボタン押下時のみ類似画像検索を実行
-        // if (!this.echoMatchButton) {
-        //     this.echoMatchButton = document.createElement('button');
-        //     this.echoMatchButton.textContent = 'Echo類似画像検索を実行';
-        //     this.echoMatchButton.style.margin = '8px 0';
-        //     this.ocrWindow.appendChild(this.echoMatchButton);
-        // }
-        // this.echoMatchButton.onclick = () => this.updateEchoMatch(
-        //     canvas, getImageData, compareImages, echoImgDir, this.echoImageList.cost4);
-        
-        this.updateEchoMatch(canvas, getImageData, compareImages, echoImgDir, this.echoImageList.cost4);
-
-
-        // プレビュー更新時はプレビューのみ
-        this.updateEchoCropPreview = (canvasRef) => {
-            const cropX = parseInt(this.echoCropInputs.x.value, 10) || 0;
-            const cropY = parseInt(this.echoCropInputs.y.value, 10) || 0;
-            const cropW = parseInt(this.echoCropInputs.w.value, 10) || canvasRef.width;
-            const cropH = parseInt(this.echoCropInputs.h.value, 10) || canvasRef.height;
-
-            // echo画像切り出し
-            const echoCropCanvas = document.createElement('canvas');
-            echoCropCanvas.width = cropW;
-            echoCropCanvas.height = cropH;
-            echoCropCanvas.getContext('2d').drawImage(canvasRef, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-            // プレビュー画像更新
-            this.echoCropPreviewImg.src = echoCropCanvas.toDataURL();
-            // 類似画像検索はしない
-        };
-    }
-    updateEchoMatch(canvas, getImageData, compareImages, echoImgDir, echoImageList) {
-        const cropX = parseInt(this.echoCropInputs.x.value, 10) || 0;
-        const cropY = parseInt(this.echoCropInputs.y.value, 10) || 0;
-        const cropW = parseInt(this.echoCropInputs.w.value, 10) || canvas.width;
-        const cropH = parseInt(this.echoCropInputs.h.value, 10) || canvas.height;
-
-        // echo画像切り出し
-        const echoCropCanvas = document.createElement('canvas');
-        echoCropCanvas.width = cropW;
-        echoCropCanvas.height = cropH;
-        echoCropCanvas.getContext('2d').drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
         const cropData = getImageData(echoCropCanvas, cropW, cropH);
         let bestMatch = null, bestScore = Infinity;
         let loaded = 0;
@@ -616,7 +1212,6 @@ class OCRWindow {
             const imgElem = new window.Image();
             imgElem.crossOrigin = 'anonymous';
             imgElem.onload = () => {
-                // サイズを合わせて比較
                 const w = cropW, h = cropH;
                 const data = getImageData(imgElem, w, h);
                 const score = compareImages(cropData, data);
@@ -625,22 +1220,22 @@ class OCRWindow {
                     bestMatch = filePath;
                 }
                 loaded++;
-                // 最後までいったら
                 if (loaded === echoImageList.length) {
-                    // bestMatchが存在したらセット
                     if (bestMatch) {
-                        this.matchedEchoThumb.src = bestMatch;
-
-                        // matchedEchoThumb.srcの値に"echo"が含まれていたらoption選択
-                        const src = this.matchedEchoThumb.src;
+                        this.view.setMatchedEchoThumb(bestMatch);
+                        const src = this.view.matchedEchoThumb.src;
                         if (src.includes('echo')) {
-                            // 1. ファイル名を取得（拡張子を除いたもの、これがechoのid）
                             const fileName = src.split('/').pop().split('.')[0];
-                            // 2. echoデータを参照しid一致を探す
-                            const echoData = gameDataManager.getEchoData();
+                            const echoData = gameDataManager.getEchosDB();
                             const matchedEcho = echoData.find(e => String(e.id) === fileName);
                             if (matchedEcho) {
-                                // 3. name情報で#echo-selectのoptionを選択
+                                // EchoModelインスタンスのnameを書き換え
+                                if (this.ocrResultData instanceof EchoModel) {
+                                    this.ocrResultData.name = matchedEcho.name;
+                                    this.ocrResultData.id = matchedEcho.id;
+                                    this.ocrResultData.elementType = matchedEcho.element;
+                                    this.ocrResultData.cost = matchedEcho.cost;
+                                }
                                 const echoSelect = document.getElementById('echo-select');
                                 for (const option of echoSelect.querySelectorAll('option')) {
                                     if (option.value === matchedEcho.name) {
@@ -651,6 +1246,7 @@ class OCRWindow {
                             }
                         }
                     }
+                    this.dispatchLoadedOcrEvent(this.ocrResultData, slotIndex);
                 }
             };
             imgElem.src = filePath;
@@ -659,23 +1255,26 @@ class OCRWindow {
 }
 
 
+
+
+
+
 // OCR結果の文字列を解析して、OCRが誤認した情報を修正、欲しい情報形式のObject化する機能を実装
 class OcrParser {
-	constructor(text) {
+    constructor(text) {
         this.text = text || '';
-		this.labels = [
-			"クリティカルダメージ", "クリティカル", "通常攻撃ダメージアップ", "重撃ダメージアップ",
-			"共鳴解放ダメージアップ", "共鳴スキルダメージアップ", "共鳴効率", "攻撃力", "防御力",
-			"HP回復効果アップ", "HP"
-		];
-	}
+        this.labels = [
+            "クリティカルダメージ", "クリティカル", "通常攻撃ダメージアップ", "重撃ダメージアップ",
+            "共鳴解放ダメージアップ", "共鳴スキルダメージアップ", "共鳴効率", "攻撃力", "防御力",
+            "HP回復効果アップ", "HP"
+        ];
+    }
 
-
-	correctParamName(paramPart) {
+    correctParamName(paramPart) {
         if (paramPart.includes("攻撃") && !paramPart.includes("ダメージアップ")) return "攻撃力";
-		if (paramPart.includes("防御")) return "防御力";
-		return null;
-	}
+        if (paramPart.includes("防御")) return "防御力";
+        return null;
+    }
 
     normalizeParamPart(paramPart) {
         if (
@@ -690,8 +1289,8 @@ class OcrParser {
         text = text.replace(
             /[^\u4E00-\u9FAF\u3040-\u309F\u30A0-\u30FFa-zA-Z0-9.%]/g, ''
         );
-        const percentMatch = text.match(/(\d{1,3}\.\d+%|\d{1,3}%)/);
-        const numberMatch = text.match(/(\d{2,3})/);
+        let percentMatch = text.match(/(\d{1,3}\.\d+%|\d{1,3}%)/);
+        const numberMatch = text.match(/(\d{2,4})/);  // mainStatus2のHPで4桁がありえる
         return percentMatch ? percentMatch[0] : (numberMatch ? numberMatch[0] : '');
     }
 
@@ -729,33 +1328,42 @@ class OcrParser {
         });
         lines = tempLines
 
+        // Prepare EchoModel fields
+        let echoName = "";
+        let cost = "";
+        let mainStatus1 = { propertyName: "", value: "" };
+        let mainStatus2 = { propertyName: "", value: "" };
+        let subStatus = Array(5).fill().map(() => ({ propertyName: "", value: "" }));
 
-        const result = {};
         if (lines.length) {
             const isNoName = lines[0].startsWith('NoName');
 
             // echoName: allow leading "・"
             if (isNoName) {
-                result.echoName = "No Name";
+                echoName = "No Name";
             } else {
-                result.echoName = lines[0].slice(0, -1).replace(/[\s\p{P}\p{S}@]{1,3}$/gu, '');
+                echoName = lines[0].slice(0, -1).replace(/[\s\p{P}\p{S}@]{1,3}$/gu, '');
             }
 
             // COST
             const costMatch = lines[1].match(/cost(\d)/i);
-            result.cost = costMatch ? costMatch[1] : '不明';
+            cost = costMatch ? costMatch[1] : '不明';
 
             // Main Status 1
             if (isNoName) {
+                // NoNameの場合、Main Status 1 のvalueが改行されているので、1行にまとめる
                 lines[2] = lines[2] + lines[3]
                 lines.splice(3, 1);
+            }
+            if (lines[2].startsWith('+2')) {
+                // lines[2]が"+2"から始まる場合は除去（+25 ～ の行を削除）
+                lines.splice(2, 1);
             }
             const mainStatus1Line = lines[2];
             const value1 = this.getValuePart(mainStatus1Line)
             let param1Part = mainStatus1Line.replace(value1, '')
             param1Part = this.normalizeParamPart(param1Part);
             const paramName1 = this.correctParamName(param1Part) || this.getClosestLabel(param1Part);
-            console.log('paramName1', paramName1, 'value1:', value1);
 
             // Main Status 2
             const mainStatus2Line = lines[3];
@@ -763,43 +1371,163 @@ class OcrParser {
             let param2Part = mainStatus2Line.replace(value2, '')
             param2Part = this.normalizeParamPart(param2Part);
             const paramName2 = this.correctParamName(param2Part) || this.getClosestLabel(param2Part);
-            console.log('paramName2:', paramName2, 'value2:', value2);
 
-            result.mainStatus = {
-                'paramName1': paramName1,
-                'value1': value1,
-                'paramName2': paramName2,
-                'value2': value2,
+            mainStatus1 = {
+                propertyName: paramName1,
+                value: value1
+            };
+            mainStatus2 = {
+                propertyName: paramName2,
+                value: value2
             };
 
-            if (result.cost === '不明') {
-                const v2 = parseFloat(result.mainStatus.value2);
-                if (v2 === 100) result.cost = '3';
-                else if (v2 === 150) result.cost = '4';
-                else if (v2 > 150) result.cost = '1';
+            if (cost === '不明') {
+                const v2 = parseFloat(mainStatus2.value);
+                if (v2 === 100) cost = '3';
+                else if (v2 === 150) cost = '4';
+                else if (v2 > 150) cost = '1';
             }
 
             // Sub Status
-            result.subStatus = [];
             const subStatusLines = lines.slice(-5); // Get the last 5 lines
-            subStatusLines.forEach(text => {
+            subStatus = subStatusLines.map(text => {
                 const subStatusValue = this.getValuePart(text)
                 let paramPart = text.replace(subStatusValue, '');
                 paramPart = this.normalizeParamPart(paramPart);
                 const subStatusParamName = this.correctParamName(paramPart) || this.getClosestLabel(paramPart);
 
-                result.subStatus.push({
-                    paramName: subStatusParamName,
+                return {
+                    propertyName: subStatusParamName,
                     value: subStatusValue
-                });
+                };
             });
         }
-        console.log('Parsed OCR Result:', result);
-        return result;
+
+        // Return EchoModel instance
+        return new EchoModel({
+            name: echoName,
+            cost: cost,
+            mainStatus1: mainStatus1,
+            mainStatus2: mainStatus2,
+            subStatus: subStatus
+        });
+    }
+}
+
+/*
+EchoのScore計算をするクラス
+
+引数で値を渡されたら、それを元に計算して返す
+わたってくる項目は SUB_STATUS_LABELS がkeyのオブジェクト
+kyeごとにあわせた計算して、計算結果の数値を返す
+
+計算方法
+- value から %を取り除いた数値 * facter （例： value が 10.5% で、factorが2.0だったら、21をreturn）
+- valueに %がついていない場合は、次の内容に沿って%に変換してから計算
+    - 次のkeyについては %なしがありえる
+        - HP, 攻撃力, 防御力
+    - 「参考基礎ステータス」の値を参照して計算
+        - value / 「参考基礎ステータス」の値 * 100
+        - 例: valueが 1000 で、参考基礎ステータスの攻撃力が 2000 の場合、1000 / 2000 * 100 = 50% として計算
+keyにかかわる factor の input id の相対表
+    "HP": "factor-hp"
+    "攻撃力": "factor-atk"
+    "防御力": "factor-def"
+    "共鳴効率": "factor-energy-regen"
+    "クリティカル": "factor-critical-per"
+    "クリティカルダメージ": "factor-critical-dmg"
+    "通常攻撃ダメージアップ": "factor-normal-atk"
+    "重撃ダメージアップ": "factor-heavy-atk"
+    "共鳴スキルダメージアップ": "factor-skill-atk"
+    "共鳴解放ダメージアップ": "factor-liberation-atk"
+%なしvalueを計算する際に用いる「参考基礎ステータス」のinput id
+    "HP": "chara-hp"
+    "攻撃力": "chara-attack"
+    "防御力": "chara-defense"
+*/
+
+class EchoScoreCalculator {
+    constructor() {
+        // factor input id map
+        this.factorInputIds = {
+            "HP": "factor-hp",
+            "攻撃力": "factor-atk",
+            "防御力": "factor-def",
+            "共鳴効率": "factor-energy-regen",
+            "クリティカル": "factor-critical-per",
+            "クリティカルダメージ": "factor-critical-dmg",
+            "通常攻撃ダメージアップ": "factor-normal-atk",
+            "重撃ダメージアップ": "factor-heavy-atk",
+            "共鳴スキルダメージアップ": "factor-skill-atk",
+            "共鳴解放ダメージアップ": "factor-liberation-atk"
+        };
+        // base status input id map
+        this.baseStatusInputIds = {
+            "HP": "chara-hp",
+            "攻撃力": "chara-atk",
+            "防御力": "chara-def"
+        };
+        // 事前にinput要素を取得してキャッシュ
+        this.factorInputs = {};
+        for (const key in this.factorInputIds) {
+            const id = this.factorInputIds[key];
+            this.factorInputs[key] = document.getElementById(id);
+        }
+        this.baseStatusInputs = {};
+        for (const key in this.baseStatusInputIds) {
+            const id = this.baseStatusInputIds[key];
+            this.baseStatusInputs[key] = document.getElementById(id);
+        }
+    }
+
+    /**
+     * 
+     * @param {HTMLElement} labelElem - ステータス名が入ったth/td/labelなど
+     * @param {HTMLElement} valueElem - 値が入ったtd/inputなど
+     * @param {HTMLElement} resultElem - 計算結果を出力する要素
+     * @returns {number} - 計算されたスコア
+     */
+    calc(labelElem, valueElem, resultElem) {
+        // ラベル取得
+        let key = labelElem.textContent?.trim() || labelElem.value?.trim() || "";
+        if (!key) {
+            if (resultElem) resultElem.textContent = "0.0";
+            return 0;
+        }
+
+        // 値取得
+        let value = valueElem.textContent?.trim();
+        if (value == null || value === "") value = valueElem.value?.trim();
+        if (value == null || value === "") {
+            if (resultElem) resultElem.textContent = "0.0";
+            return 0;
+        }
+
+        let percentValue;
+        if (typeof value === "string" && value.includes("%")) {
+            percentValue = parseFloat(value.replace("%", ""));
+        } else if (["HP", "攻撃力", "防御力"].includes(key)) {
+            // %なしの場合は基礎値参照
+            let baseInput = this.baseStatusInputs[key];
+            let base = baseInput ? parseFloat(baseInput.value) : 0;
+            percentValue = base ? (parseFloat(value) / base * 100) : 0;
+        } else {
+            percentValue = parseFloat(value);
+        }
+        // factor取得
+        let factorInput = this.factorInputs[key];
+        let factor = factorInput ? parseFloat(factorInput.value) : 1.0;
+
+        // 小数点第二位以下は削除（切り捨て）、必ず小数点第一まで表記
+        let result = percentValue * factor;
+        result = Math.floor(result * 10) / 10;
+        if (resultElem) resultElem.textContent = result.toFixed(1);
+        return result.toFixed(1);
     }
 }
 
 
+// TODO: デバックで使ってたやつ、多分もういらないので後で書くにして削除
 class ScoreCheckerUI {
     constructor() {
         this.echoSelect = document.getElementById('echo-select');
@@ -807,53 +1535,21 @@ class ScoreCheckerUI {
         this.mainOption1Value = document.getElementById('main-option-1-value');
         this.mainOption2 = document.getElementById('main-option-2');
         this.mainOption2Value = document.getElementById('main-option-2-value');
-        this.subStatsTable = document.querySelector('#sub-stats-table tbody');
+        this.subStatusTable = document.querySelector('#sub-status-table tbody');
         this.echoData = [];
-        this.mainStatus1Labels = [
-            "クリティカル",
-            "クリティカルダメージ",
-            "HP",
-            "攻撃力",
-            "防御力",
-            "共鳴効率",
-            "HP回復効果アップ",
-            "凝縮ダメージアップ",
-            "焦熱ダメージアップ",
-            "電導ダメージアップ",
-            "気動ダメージアップ",
-            "回折ダメージアップ",
-            "消滅ダメージアップ",
-
-        ];
-        this.mainStatus2Labels = [
-            "HP",
-            "攻撃力",
-        ];
-        this.subStatusLabels = [
-            "クリティカル",
-            "クリティカルダメージ",
-            "HP",
-            "攻撃力",
-            "防御力",
-            "共鳴効率",
-            "通常攻撃ダメージアップ",
-            "重撃ダメージアップ",
-            "共鳴スキルダメージアップ",
-            "共鳴解放ダメージアップ",
-        ];
         this.init();
     }
 
     init() {
-        this.echoData = gameDataManager.getEchoData();
+        this.echoData = gameDataManager.getEchosDB();
         this.initEchoSelect();
-        this.initMainStatsTable();
-        this.initSubStatsTable();
+        this.initMainStatusTable();
+        this.initSubStatusTable();
     }
 
-    initMainStatsTable() {
+    initMainStatusTable() {
         this.mainOption1.innerHTML = '';
-        this.mainStatus1Labels.forEach(optionValue => {
+        MAIN_STATUS_1_LABELS.forEach(optionValue => {
             const option = document.createElement('option');
             option.value = optionValue;
             option.textContent = optionValue;
@@ -862,7 +1558,7 @@ class ScoreCheckerUI {
         });
 
         this.mainOption2.innerHTML = '';
-        this.mainStatus2Labels.forEach(optionValue => {
+        MAIN_STATUS_2_LABELS.forEach(optionValue => {
             const option = document.createElement('option');
             option.value = optionValue;
             option.textContent = optionValue;
@@ -870,11 +1566,11 @@ class ScoreCheckerUI {
         });
     }
 
-    initSubStatsTable() {
-        const selects = this.subStatsTable.querySelectorAll('select');
+    initSubStatusTable() {
+        const selects = this.subStatusTable.querySelectorAll('select');
         selects.forEach(select => {
             select.innerHTML = '';
-            this.subStatusLabels.forEach(opt => {
+            SUB_STATUS_LABELS.forEach(opt => {
                 const option = document.createElement('option');
                 option.value = opt;
                 option.textContent = opt;
@@ -934,18 +1630,18 @@ class ScoreCheckerUI {
 
     setMainStatus(mainStatus) {
         // Set paramName
-        this.setSelectByLabel(this.mainOption1, mainStatus.paramName1, this.mainStatus1Labels);
+        this.setSelectByLabel(this.mainOption1, mainStatus.paramName1, MAIN_STATUS_1_LABELS);
         // Set value
         this.mainOption1Value.value = mainStatus.value1;
 
         // Set paramName2
-        this.setSelectByLabel(this.mainOption2, mainStatus.paramName2, this.mainStatus2Labels);
+        this.setSelectByLabel(this.mainOption2, mainStatus.paramName2, MAIN_STATUS_2_LABELS);
         // Set value2
         this.mainOption2Value.value = mainStatus.value2;
     }
     setSubStatus(subStatus) {
         // 既存のtr要素を取得
-        const rows = Array.from(this.subStatsTable.querySelectorAll('tr'));
+        const rows = Array.from(this.subStatusTable.querySelectorAll('tr'));
         for (let i = 0; i < subStatus.length; i++) {
             const sub = subStatus[i];
             let tr = rows[i];
@@ -953,7 +1649,7 @@ class ScoreCheckerUI {
             const select = tr.querySelector('select');
             const input = tr.querySelector('input');
             // 値をセット
-            this.setSelectByLabel(select, sub.paramName, this.subStatusLabels);
+            this.setSelectByLabel(select, sub.paramName, SUB_STATUS_LABELS);
             input.value = sub.value;
         }
     }
@@ -1003,23 +1699,1027 @@ class ScoreCheckerUI {
 }
 
 
+/**
+ * UserCharacterModel
+ * 1キャラのユーザー設定を管理するモデル（このインスタンスをキャラごとに作成する）
+ */
+class UserCharaModel {
+    constructor({
+        name = "",
+        chain = 0,
+        equipment = { id: "", type: "", rank: 1 },
+        scoreFactorType = "default",
+        scoreFactor = {
+            // "クリティカル": 1.0,
+            // "クリティカルダメージ": 1.0,
+            // "HP": 1.0,
+            // "攻撃力": 1.0,
+            // "防御力": 1.0,
+            // "共鳴効率": 1.0,
+            // "通常攻撃ダメージアップ": 1.0,
+            // "重撃ダメージアップ": 1.0,
+            // "共鳴スキルダメージアップ": 1.0,
+            // "共鳴解放ダメージアップ": 1.0
+        },
+        echoList = []
+    } = {}) {
+        this.name = name;
+        this.chain = chain;
+        this.equipment = { ...equipment };
+        this.scoreFactorType = scoreFactorType;
+        this.scoreFactor = { ...scoreFactor };
+        // echoListはEchoModelインスタンスの配列
+        this.echoList = echoList.map(e => (e instanceof EchoModel ? e : new EchoModel(e)));
+    }
+
+    setEchoList(echoList) {
+        this.echoList = echoList.map(e => (e instanceof EchoModel ? e : new EchoModel(e)));
+    }
+    setEcho(index, echoObj) {
+        if (!(echoObj instanceof EchoModel)) {
+            echoObj = new EchoModel(echoObj);
+        }
+        this.echoList[index] = echoObj;
+    }
+
+    setScoreFactorType(type) {
+        this.scoreFactorType = type;
+    }
+
+    setScoreFactor(factorObj) {
+        this.scoreFactor = { ...this.scoreFactor, ...factorObj };
+    }
+
+    setWeapon(id, weaponType, rank=1) {
+        this.equipment.id = id || this.equipment.id;
+        this.equipment.weaponType = weaponType || this.equipment.weaponType;
+        this.equipment.rank = rank || this.equipment.rank;
+    }
+
+    setChain(chain) {
+        this.chain = chain;
+    }
+
+    setName(name) {
+        this.name = name;
+    }
+
+    toJSON() {
+        return {
+            name: this.name,
+            chain: this.chain,
+            equipment: { ...this.equipment },
+            scoreFactor: { ...this.scoreFactor },
+            scoreFactorType: this.scoreFactorType,
+            echoList: this.echoList.map(e => (typeof e.toJSON === "function" ? e.toJSON() : e))
+        };
+    }
+}
+
+
+
+
+/**
+ * UserCharaDataManager
+ * キャラクターごとのユーザーデータを管理
+ * gameDataManagerのdata.resonator情報を保持（resonatorはCharacterのこと）
+ * CharaSelecterと連携し、キャラが切り替わったら、そのキャラのデータを取得し、表示する
+ * ユーザーがキャラを切り替えたりキャラ情報を更新したら、LocalStorageに情報を保存する
+ * UserDataの構造
+    {
+        "selectedCharaName": "キャラ名",
+        "charaData": {
+            "キャラ名": {
+                UserCharacterModel のインスタンスをJSON化したもの
+            }
+        },
+        weaponData: [
+            {
+                id: "10011",
+                rank: 1
+            }
+        ]
+    }
+ * 
+ */
+class UserCharaDataManager {
+    constructor(charactersDB) {
+        this.charactersDB = charactersDB;
+        this.currentCharaModel = null;
+        this.userDataLSM = new LocalStorageManager('userData');
+        this.userData = this.userDataLSM.getData()
+        if (this.userData.selectedCharaName === undefined) {
+            this.userData.selectedCharaName = "";
+        }
+        if (this.userData.charaData === undefined) {
+            this.userData.charaData = {};
+        }
+        this.subtotalScoreListView;
+        this.init();
+    }
+
+    init() {
+        // this.userData.selectedCharaNameがなかったら、デフォキャラを設定
+        let charaName = this.userData.selectedCharaName;
+        if (!charaName) {
+            charaName = "漂泊者・回折"
+            this.userData.selectedCharaName = charaName;
+        }
+        const currentCharaDB = this.getCurrentCharaDB();
+        let userCharaData = this.userData.charaData[charaName];
+
+        // userCharaData をセットアップ
+        if (!userCharaData){
+            userCharaData = {
+                name: charaName,
+                equipment: {
+                    id: this.getWeaponDefaultId(currentCharaDB.weaponType),
+                    type: currentCharaDB.weaponType || "",
+                    rank: 1
+                },
+                scoreFactor: currentCharaDB.scoreWeight || {},
+                scoreFactorType: "default",
+                echoList: []
+            }
+        }
+        let scoreWeight = currentCharaDB.scoreWeight;
+        if (typeof scoreWeight === "string") {
+            try {
+            scoreWeight = JSON.parse(scoreWeight);
+            } catch (e) {
+            scoreWeight = {};
+            }
+        }
+        this.currentCharaModel = new UserCharaModel(userCharaData);
+
+        // Userキャラデータをもとに、表示を更新
+        this.setSelectedChara(charaName);
+        const {id, weaponType, rank} = this.currentCharaModel.equipment;
+        this.setWeaponData(id, weaponType, rank);
+
+    }
+
+    getCurrentCharaDB() {
+        const charaName = this.userData.selectedCharaName;
+        return this.charactersDB.find(c => c.name === charaName);
+    }
+
+    getCurrentUserCharaData() {
+        const charaName = this.userData.selectedCharaName;
+        return this.userData.charaData[charaName] || {};
+    }
+
+    getWeaponDefaultId(weaponType){
+        return Number("210" + weaponType + "0011");
+    }
+
+    setSelectedChara(name) {
+        // nameが一致するキャラがresonator配列に存在するかチェック
+        const exists = this.charactersDB.some(chara => chara.name === name);
+        if (!exists) return;
+
+        // userDataのselectedCharaを更新
+        this.userData.selectedCharaName = name;
+
+        // charaDataに選択キャラがいるか探す
+        if (this.userData.charaData[name]) {
+            // 既存データがあればUserCharaModelインスタンス化して格納
+            this.currentCharaModel = new UserCharaModel(this.userData.charaData[name]);
+        }
+        else {
+            // なければ新規作成
+            this.currentCharaModel = new UserCharaModel({ name: name });
+            this.userData.charaData[name] = this.currentCharaModel.toJSON();
+        }
+        if (!this.currentCharaModel.equipment.weaponType) {
+            this.currentCharaModel.equipment.weaponType = this.getCurrentCharaDB().weaponType;
+            this.userData.charaData[name] = this.currentCharaModel.toJSON();
+        }
+        
+        // LocalStorageとSync
+        this.userDataLSM.setData(this.userData);
+    }
+
+    getEchoList() {
+        return this.currentCharaModel.echoList;
+    }
+    
+    setEchoList(echoList) {
+        this.currentCharaModel.setEchoList(echoList);
+        this._syncUserDataLSM();
+    }
+
+    setEcho(index, echoObj) {
+        this.currentCharaModel.setEcho(index, echoObj);
+        this._syncUserDataLSM();
+    }
+
+    setScoreFactorType(type) {
+        this.currentCharaModel.setScoreFactorType(type);
+        this._syncUserDataLSM();
+    }
+
+    setScoreFactor(factorObj) {
+        this.currentCharaModel.setScoreFactor(factorObj);
+        this._syncUserDataLSM();
+    }
+
+    setWeaponData(id, weaponType, rank) {
+        rank = rank || this.currentCharaModel.equipment.rank || 1;
+        this.currentCharaModel.setWeapon(id, weaponType, rank);
+        this._syncUserDataLSM();
+    }
+
+    setChain(chain) {
+        this.currentCharaModel.setChain(chain);
+        this._syncUserDataLSM();
+    }
+
+    setName(name) {
+        this.currentCharaModel.setName(name);
+        this._syncUserDataLSM();
+    }
+
+    // 内部: selectedCharaModel→userData→LocalStorageへ反映
+    _syncUserDataLSM() {
+        const name = this.currentCharaModel.name;
+        this.userData.charaData[name] = this.currentCharaModel.toJSON();
+        this.userDataLSM.setData(this.userData);
+    }
+}
+
+
+
+
+
+
+
+
+/**
+ * EchoModel
+ * Echo（エコー）1つ分のデータモデル
+ */
+class EchoModel {
+    constructor({
+        id = "",
+        name = "",
+        elementType = "",
+        cost = "",
+        mainStatus1 = { propertyName: "", value: "" },
+        mainStatus2 = { propertyName: "", value: "" },
+        subStatus = Array(5).fill().map(() => ({ propertyName: "", value: "" }))
+    } = {}) {
+        this.id = id;
+        this.name = name;
+        this.elementType = elementType;
+        this.cost = cost;
+
+        this.setMainStatus1(mainStatus1);
+        this.mainStatus2 = { ...mainStatus2 };
+        this.setSubStatus(subStatus);
+    }
+
+    // mainStatus1 value: if ends with ".0%" → remove ".0"
+    _normalizeMainStatus1(mainStatus1) {
+        let ms1Value = mainStatus1.value;
+        if (typeof ms1Value === "string" && ms1Value.match(/^\d+\.0%$/)) {
+            ms1Value = ms1Value.replace(/\.0%$/, "%");
+        }
+        return { ...mainStatus1, value: ms1Value };
+    }
+
+    // subStatus value: if ends with "%" and no decimal, add ".0"
+    _normalizeSubStatus(subStatus) {
+        return subStatus.map(s => {
+            let v = s.value;
+            if (
+                typeof v === "string" &&
+                v.match(/^\d+%$/)
+            ) {
+                v = v.replace(/%$/, ".0%");
+            }
+            return { ...s, value: v };
+        });
+    }
+
+    setMainStatus1(val) {
+        this.mainStatus1 = this._normalizeMainStatus1(val);
+    }
+
+    setSubStatus(val) {
+        this.subStatus = this._normalizeSubStatus(val);
+    }
+
+    /**
+     * データの自己チェック
+     * @returns {object} エラー情報 { valid: boolean, errors: array }
+     */
+    selfCheck() {
+        const errors = [];
+
+        // mainStatus1
+        if (!MAIN_STATUS_1_LABELS.includes(this.mainStatus1.propertyName)) {
+            errors.push(`mainStatus1.propertyName "${this.mainStatus1.propertyName}" is invalid`);
+        }
+        // mainStatus2
+        if (!MAIN_STATUS_2_LABELS.includes(this.mainStatus2.propertyName)) {
+            errors.push(`mainStatus2.propertyName "${this.mainStatus2.propertyName}" is invalid`);
+        }
+        // subStatus
+        this.subStatus.forEach((s, i) => {
+            if (s.propertyName && !SUB_STATUS_LABELS.includes(s.propertyName)) {
+                errors.push(`subStatus[${i}].propertyName "${s.propertyName}" is invalid`);
+            }
+        });
+
+        return {
+            valid: errors.length === 0,
+            errors
+        };
+    }
+}
+
+/**
+ * EchoListManager
+ * echo-list の各echo情報を管理し、UI編集・反映も担当
+ * echoList は以下の形式で保持
+   [
+        {
+            id: "H71",
+            name: "ナイトメア・飛廉の大猿"
+            elementType: "Wind",
+            cost: "4",
+            mainStatus1: {propertyName: "クリティカル", value: "22%"},
+            mainStatus2: {propertyName: "攻撃力", value: "150"},
+            subStatus: [
+                {propertyName: "クリティカル", value: "10.5%"},
+                {propertyName: "クリティカル", value: "10.5%"},
+                {propertyName: "クリティカル", value: "10.5%"},
+                {propertyName: "クリティカル", value: "10.5%"},
+                {propertyName: "クリティカル", value: "10.5%"}
+            ]
+        }
+    ]
+ */
+class EchoListManager {
+    constructor(echoDB, echoScoreCalculator) {
+        this.echoDB = echoDB || [];
+        this.echoList = [];
+        this.ul = document.getElementById('echo-list');
+        this.lis = this.ul.querySelectorAll('li');
+        this.echoScoreCalculator = echoScoreCalculator || new EchoScoreCalculator();
+        this.init();
+    }
+
+    init() {
+        // 初期化時にecho-listのli数だけ空データを用意
+        this.echoList = Array.from(this.lis).map(() => new EchoModel());
+        // 編集用selectを生成
+        this.mainStatus1Select = this.createSelect(MAIN_STATUS_1_LABELS);
+        this.mainStatus2Select = this.createSelect(MAIN_STATUS_2_LABELS);
+        this.subStatusSelect = this.createSelect(SUB_STATUS_LABELS);
+        // イベント付与
+        this.attachEditEvents();
+    }
+
+    createSelect(labels) {
+        const select = document.createElement('select');
+        labels.forEach(label => {
+            const option = document.createElement('option');
+            option.value = label;
+            option.textContent = label;
+            select.appendChild(option);
+        });
+        select.style.position = 'absolute';
+        select.style.minWidth = '120px';
+        return select;
+    }
+
+    // 編集イベント付与
+    attachEditEvents() {
+        const lis = this.ul.querySelectorAll('li');
+        lis.forEach((li, slotIndex) => {
+            // main-status th
+            const mainThs = li.querySelectorAll('.main-status th');
+            mainThs.forEach((th, thIndex) => {
+                th.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showMainStatusSelect(th, slotIndex, thIndex);
+                });
+            });
+            // main-status td
+            const mainTds = li.querySelectorAll('.main-status td');
+            mainTds.forEach((td, tdIndex) => {
+                td.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showEditInput(td, slotIndex, tdIndex, 'main');
+                });
+            });
+            // sub-status th
+            const subThs = li.querySelectorAll('.sub-status tbody th');
+            console.log('subThs:', subThs);
+            subThs.forEach((th, subIndex) => {
+                th.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showSubStatusSelect(th, slotIndex, subIndex);
+                });
+            });
+            // sub-status td
+            const subTrs = li.querySelectorAll('.sub-status tbody tr');
+            subTrs.forEach((tr, subIndex) => {
+                // 編集対象は最初のtdのみ（Scoreのtdを除外）
+                const td = tr.querySelector('td');
+                td.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showEditInput(td, slotIndex, subIndex, 'sub');
+                });
+            });
+        });
+    }
+
+    // main-status th編集
+    showMainStatusSelect(th, slotIndex, thIndex) {
+        const select = thIndex === 0 ? this.mainStatus1Select : this.mainStatus2Select;
+        // 選択値をセット
+        select.value = th.textContent.trim();
+        // DOM配置
+        const originalValue = select.value;
+        th.textContent = '';
+        th.appendChild(select);
+        select.focus();
+        select.size = 6; // プルダウン展開
+
+        const closeEdit = (val) => {
+            th.textContent = val;
+            select.removeEventListener('change', onBlurOrChange);
+            select.removeEventListener('blur', onBlurOrChange);
+            select.removeEventListener('keydown', onKeyDown);
+            select.size = 1;
+            
+            if (originalValue !== val) {
+                if (thIndex === 0) {
+                    this.echoList[slotIndex].mainStatus1.propertyName = val;
+                } else {
+                    this.echoList[slotIndex].mainStatus2.propertyName = val;
+                }
+                this.fireEchoListChanged();
+            }
+        };
+
+        let isChanged = false;
+        const onBlurOrChange = () => {
+            if (isChanged) return;
+            isChanged = true;
+            closeEdit(select.value);
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closeEdit(originalValue);
+            }
+        };
+
+        select.addEventListener('change', onBlurOrChange, { once: true });
+        select.addEventListener('blur', onBlurOrChange, { once: true });
+        select.addEventListener('keydown', onKeyDown);
+    }
+
+    // sub-status th編集
+    showSubStatusSelect(th, slotIndex, thIndex) {
+        const select = this.subStatusSelect;
+        select.value = th.textContent.trim();
+        const originalValue = select.value;
+        th.textContent = '';
+        th.appendChild(select);
+        select.focus();
+        select.size = 6;
+
+        const closeEdit = (val) => {
+            th.textContent = val;
+            select.removeEventListener('change', onBlurOrChange);
+            select.removeEventListener('blur', onBlurOrChange);
+            select.removeEventListener('keydown', onKeyDown);
+            select.size = 1;
+            
+            if (originalValue !== val) {
+                this.echoList[slotIndex].subStatus[thIndex].propertyName = val;
+
+                // スコア計算
+                this.calcEchoScore(slotIndex);
+                this.fireEchoListChanged();
+            }
+        };
+
+        let isChanged = false;
+        const onBlurOrChange = () => {
+            if (isChanged) return;
+            isChanged = true;
+            closeEdit(select.value);
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closeEdit(originalValue);
+            }
+        };
+
+        select.addEventListener('change', onBlurOrChange, { once: true });
+        select.addEventListener('blur', onBlurOrChange, { once: true });
+        select.addEventListener('keydown', onKeyDown);
+    }
+
+    // td編集
+    showEditInput(td, slotIndex, tdIndex, type) {
+        const originalValue = td.textContent.trim();
+        td.textContent = '';
+        // 新しいinput要素を毎回生成して使う（多重編集バグ防止）
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.style.width = '60px';
+        input.value = originalValue;
+        td.appendChild(input);
+        input.focus();
+        input.select();
+
+        const closeEdit = (val) => {
+            // tdとechoListに反映
+            td.textContent = val;
+            // イベント削除とinput要素の削除
+            input.removeEventListener('change', onBlurOrChange);
+            input.removeEventListener('blur', onBlurOrChange);
+            input.removeEventListener('keydown', onKeyDown);
+            input.remove();
+            
+            if (originalValue !== val) {
+                if (type === 'main') {
+                    if (tdIndex === 0) this.echoList[slotIndex].mainStatus1.value = val;
+                    else this.echoList[slotIndex].mainStatus2.value = val;
+                }
+                else {
+                    this.echoList[slotIndex].subStatus[tdIndex].value = val;
+                }
+
+                this.calcEchoScore(slotIndex);
+                this.fireEchoListChanged();
+            }
+        };
+
+        let isChanged = false;
+        const onBlurOrChange = () => {
+            if (isChanged) return;
+            isChanged = true;
+            let val = input.value;
+            // 全角数字・ドット・％→半角
+            val = val.replace(/[０-９．．]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                .replace(/[％]/g, '%');
+            // 数字と.と%以外除去
+            val = val.replace(/[^0-9.%\-]/g, '');
+            if (!val) val = originalValue;
+            closeEdit(val);
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                closeEdit(originalValue);
+            }
+        };
+
+        input.addEventListener('change', onBlurOrChange, { once: true });
+        input.addEventListener('blur', onBlurOrChange, { once: true });
+        input.addEventListener('keydown', onKeyDown);
+        input.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    // echoListChangedイベント発火
+    fireEchoListChanged() {
+        const event = new CustomEvent('echoListChanged', { detail: { echoList: this.getEchoList() } });
+        document.dispatchEvent(event);
+    }
+
+    setEchoList(echoList) {
+        // echoListはEchoModelインスタンスの配列
+        this.echoList = echoList.map(e => (e instanceof EchoModel ? e : new EchoModel(e)));
+    }
+
+
+    // データ取得
+    getEchoList() {
+        return this.echoList;
+    }
+
+    calcEchoScore(slotIndex) {
+        // sub-statusスコア計算・出力
+        const li = this.lis[slotIndex];
+        const subStatusTbody = li.querySelector('.sub-status tbody');
+        const subTrs = subStatusTbody.querySelectorAll('tr');
+        let totalScore = 0;
+        for (let i = 0; i < subTrs.length; i++) {
+            const th = subTrs[i].querySelector('th');
+            const tds = subTrs[i].querySelectorAll('td');
+            if (tds.length > 1) {
+                const score = parseFloat(this.echoScoreCalculator.calc(th, tds[0], tds[1]));
+                if (!isNaN(score)){
+                    totalScore += score;
+                    // scoreが0ならdisabledクラスを付与、0以外なら外す
+                    subTrs[i].classList.toggle('disabled', score === 0);
+                }
+            }
+        }
+        // 合計値をli .score bに出力（小数点第一位まで）
+        const scoreElem = li.querySelector('.score b');
+        if (scoreElem) {
+            scoreElem.textContent = totalScore.toFixed(1);
+        }
+    }
+    calcEchoScoreAll() {
+        // 全てのechoのスコアを計算
+        this.lis.forEach((li, index) => {
+            this.calcEchoScore(index);
+        });
+    }
+
+    // データ上書き
+    setEcho(slotIndex, echoObj) {
+        // // echoObjがEchoModelでなければ変換
+        // if (!(echoObj instanceof EchoModel)) {
+        //     echoObj = new EchoModel(echoObj);
+        // }
+        this.echoList[slotIndex] = echoObj;
+        this.renderEcho(slotIndex, echoObj);
+        this.calcEchoScore(slotIndex);
+
+        const event = new CustomEvent('updatEchoSlot', { detail: { echoList: this.getEchoList() } });
+        document.dispatchEvent(event);
+    }
+
+    setEchoList(echoList) {
+        echoList = Array(5).fill().map((_, i) => echoList[i] ? echoList[i] : new EchoModel());
+        echoList.forEach((echo, index) => {
+            this.setEcho(index, echo);
+        });
+    }
+
+    // UI反映
+    renderEcho(slotIndex, echo) {
+        let li;
+        if (slotIndex === -1){
+            li = this.ul.querySelector('li').cloneNode(true);
+            li.id = 'drag-echo-item';
+            li.classList.add('highlight');
+        }
+        else{
+            li = this.ul.querySelectorAll('li')[slotIndex];
+        }
+
+        // 画像
+        const img = li.querySelector('figure img');
+        if (echo.id && echo.cost) {
+            img.src = `./img/common/echo/cost${echo.cost}/${echo.id}.webp`;
+        }
+        else {
+            img.src = DUMMYURI;
+        }
+
+        // cost
+        const costDiv = li.querySelector('.cost');
+        costDiv.textContent = echo.cost || '';
+
+        // main-status
+        const mainStatusTable = li.querySelector('.main-status');
+        const trs = mainStatusTable.querySelectorAll('tr');
+        trs[0].querySelector('th').textContent = echo.mainStatus1.propertyName || '';
+        trs[0].querySelector('td').textContent = echo.mainStatus1.value || '';
+        trs[1].querySelector('th').textContent = echo.mainStatus2.propertyName || '';
+        trs[1].querySelector('td').textContent = echo.mainStatus2.value || '';
+
+        // sub-status
+        const subStatusTbody = li.querySelector('.sub-status tbody');
+        const subTrs = subStatusTbody.querySelectorAll('tr');
+        for (let i = 0; i < subTrs.length; i++) {
+            // 1つ目のtdのみ編集反映
+            subTrs[i].querySelector('th').textContent = echo.subStatus[i]?.propertyName || '';
+            const tds = subTrs[i].querySelectorAll('td');
+            if (tds.length > 0) {
+                tds[0].textContent = echo.subStatus[i]?.value || '';
+            }
+            // 2つ目以降のtdは編集反映しない
+        }
+        return li;
+    }
+
+    // OCR結果反映
+    updateFromOcr(ocrResult, slotIndex = 0) {
+        // ocrResultはEchoModelインスタンス前提
+        if (!(ocrResult instanceof EchoModel)) return;
+
+        // echoDataから一致するものを探して不足情報を補完
+        let echoObj = this.echoDB.find(e => e.name === ocrResult.name);
+
+        if (echoObj) {
+            ocrResult.id = echoObj.id;
+            ocrResult.name = echoObj.name;
+            // ocrResult.elementType = echoObj.element;
+            ocrResult.cost = echoObj.cost;
+        }
+
+        // slotIndex === -1 の場合はドラッグ＆ドロップUIで適用スロットを選ばせる
+        if (slotIndex === -1) {
+            this.slotSelectUI(ocrResult);
+            return;
+        }
+
+        this.setEcho(slotIndex, ocrResult);
+
+    }
+    slotSelectUI(ocrResult){
+        // liを生成
+        const dragLi = this.renderEcho(-1, ocrResult);
+
+        // #echo-listの中央・上側に配置
+        const echoListRect = this.ul.getBoundingClientRect();
+        const liSample = this.ul.querySelector('li');
+        const liRect = liSample.getBoundingClientRect();
+        dragLi.style.left = (echoListRect.left + (echoListRect.width - liRect.width) / 2) + 'px';
+        dragLi.style.top = (echoListRect.top - liRect.height - 20) + 'px';
+
+        // body直下に配置
+        document.body.appendChild(dragLi);
+
+        // ドラッグ制御
+        let offsetX = 0, offsetY = 0, dragging = false;
+
+        const onMouseDown = (e) => {
+        dragging = true;
+        dragLi.style.cursor = 'grabbing';
+        offsetX = e.clientX - dragLi.getBoundingClientRect().left;
+        offsetY = e.clientY - dragLi.getBoundingClientRect().top;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        };
+
+        const onMouseMove = (e) => {
+        if (!dragging) return;
+        dragLi.style.left = (e.clientX - offsetX) + 'px';
+        dragLi.style.top = (e.clientY - offsetY) + 'px';
+
+        // highlight処理
+        let foundHighlight = false;
+        this.lis.forEach((li, idx) => {
+            const rect = li.getBoundingClientRect();
+            if (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+            ) {
+            li.classList.add('highlight');
+            foundHighlight = true;
+            } else {
+            li.classList.remove('highlight');
+            }
+        });
+        if (!foundHighlight) {
+            this.lis.forEach(li => li.classList.remove('highlight'));
+        }
+        };
+
+        const onMouseUp = (e) => {
+        dragging = false;
+        dragLi.style.cursor = 'grab';
+        let dropped = false;
+        this.lis.forEach((li, idx) => {
+            const rect = li.getBoundingClientRect();
+            if (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+            ) {
+            li.classList.remove('highlight');
+            dragLi.remove();
+            this.setEcho(idx, ocrResult);
+            dropped = true;
+            } else {
+            li.classList.remove('highlight');
+            }
+        });
+        if (dropped) {
+            dragLi.remove();
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+        };
+
+        dragLi.addEventListener('mousedown', onMouseDown);
+        // タッチ対応
+        dragLi.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        dragging = true;
+        dragLi.style.cursor = 'grabbing';
+        offsetX = touch.clientX - dragLi.getBoundingClientRect().left;
+        offsetY = touch.clientY - dragLi.getBoundingClientRect().top;
+        const onTouchMove = (ev) => {
+            const t = ev.touches[0];
+            dragLi.style.left = (t.clientX - offsetX) + 'px';
+            dragLi.style.top = (t.clientY - offsetY) + 'px';
+            let foundHighlight = false;
+            this.lis.forEach((li, idx) => {
+            const rect = li.getBoundingClientRect();
+            if (
+                t.clientX >= rect.left &&
+                t.clientX <= rect.right &&
+                t.clientY >= rect.top &&
+                t.clientY <= rect.bottom
+            ) {
+                li.classList.add('highlight');
+                foundHighlight = true;
+            } else {
+                li.classList.remove('highlight');
+            }
+            });
+            if (!foundHighlight) {
+            this.lis.forEach(li => li.classList.remove('highlight'));
+            }
+        };
+        const onTouchEnd = (ev) => {
+            dragging = false;
+            dragLi.style.cursor = 'grab';
+            let dropped = false;
+            const changedTouch = ev.changedTouches[0];
+            this.lis.forEach((li, idx) => {
+                const rect = li.getBoundingClientRect();
+                if (
+                    changedTouch.clientX >= rect.left &&
+                    changedTouch.clientX <= rect.right &&
+                    changedTouch.clientY >= rect.top &&
+                    changedTouch.clientY <= rect.bottom
+                ) {
+                    li.classList.remove('highlight');
+                    dragLi.remove();
+                    this.setEcho(idx, ocrResult);
+                    dropped = true;
+                } else {
+                    li.classList.remove('highlight');
+                }
+            });
+            if (!dropped) {
+                dragLi.remove();
+            }
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+
+        };
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd, { passive: false });
+        }, { passive: false });
+    }
+}
+
+
+class WWScore{
+    constructor(dataBase) {
+        this.dataBase = dataBase;
+        this.userCharaDataManager = new UserCharaDataManager(dataBase.resonator);
+        this.echoListManager = new EchoListManager(dataBase.echo);
+        this.ocrWindowController = new OCRWindowController()
+
+        this.charaSeceter = new CharaSelecter();
+        this.weaponSelecter = new WeaponSelecter();
+        this.subtotalListManager = new SubtotalListManager();
+        
+        this.init();
+    }
+
+    init() {
+        this.applyUserData();
+        this.observeOCR();
+        this.observeCharaChange();
+        this.observeWeaponChange();
+        this.observeFactorChange();
+        this.observeEchoStatusChange();
+    }
+    applyUserData() {
+        const selectedCharaName = this.userCharaDataManager.userData.selectedCharaName;
+        this.changeChara(selectedCharaName || "漂泊者・回折");
+    }
+    changeChara(charaName) {
+        this.userCharaDataManager.setSelectedChara(charaName);
+        this.updateCharaView()
+        this.updateWeapon();
+        this.updateScoreFactor();
+        this.updateEchoList();
+    }
+    updateCharaView(){
+        // charaDBを取得してsetSelectedCharacterに渡す
+        const charaDB = this.userCharaDataManager.getCurrentCharaDB()
+        if (charaDB) {
+            this.charaSeceter.setSelectedCharacter(charaDB);
+        }
+    }
+
+    updateWeapon() {
+        // selectedCharaModelのweaponを取得
+        const equipmentData = this.userCharaDataManager.currentCharaModel.equipment;
+
+        // TODO: これ多分不要になるので、あとで確認して削除
+        if (!equipmentData.id) {
+            equipmentData.id = this.userCharaDataManager.getWeaponDefaultId(equipmentData.weaponType);
+        }
+        this.weaponSelecter.setSelectedWeaponById(equipmentData.id, equipmentData.rank);
+        this.weaponSelecter.tabSelecterModalView.isolate(equipmentData.weaponType);
+
+        const charaAtk = this.userCharaDataManager.getCurrentCharaDB().baseATK;
+        const weaponAtk = this.weaponSelecter.weaponTable.querySelector('td').textContent.trim();
+        this.charaSeceter.atkInput.value = Number(charaAtk) + Number(weaponAtk);
+        this.charaSeceter.atkInput.parentNode.dataset.breakdown = `${charaAtk}+${weaponAtk}`;
+    }
+    updateScoreFactor() {
+        const getCurrentUserCharaData = this.userCharaDataManager.getCurrentUserCharaData();
+        this.subtotalScoreListView = new SubtotalScoreListView(
+            this.userCharaDataManager.getCurrentCharaDB().scoreWeight,
+            getCurrentUserCharaData.scoreFactor,
+            getCurrentUserCharaData.scoreFactorType
+        );
+        this.subtotalScoreListView.setFactors()
+    }
+
+    updateEchoList() {
+        this.echoListManager.setEchoList(this.userCharaDataManager.getEchoList());
+        this.subtotalListManager.update();
+    }
+    observeOCR(){
+        // OCRWindowControllerのイベントを監視して、echoListManagerに反映
+        document.addEventListener('loadedOCR', (e) => {
+            const { ocrResult, slotIndex } = e.detail;
+            this.echoListManager.updateFromOcr(ocrResult, slotIndex);
+        });
+
+        // UserDataの現在のキャラのechoListを更新
+        document.addEventListener('updatEchoSlot', (e) => {
+            this.userCharaDataManager.setEchoList(e.detail.echoList);
+            
+            this.subtotalListManager.update();
+            this.echoListManager.calcEchoScoreAll();
+        });
+    }
+    observeCharaChange() {
+        // UserCharaDataManagerのキャラ切り替えイベントを監視
+        document.addEventListener('characterChanged', (e) => {
+            const charaDB = e.detail;
+
+            // 既に選択されているキャラクターの場合は処理をスキップ
+            if (this.userCharaDataManager.userData.selectedCharaName === charaDB.name) {
+                return;
+            }
+            this.changeChara(charaDB.name);
+        });
+    }
+    observeWeaponChange() {
+        document.addEventListener('weaponChanged', (e) => {
+            const {id, weaponType} = e.detail;
+            if (this.userCharaDataManager.currentCharaModel.equipment.id === id) {
+                return; // 既に選択されている武器の場合は処理をスキップ
+            }
+            this.userCharaDataManager.setWeaponData(id, weaponType);
+            this.updateWeapon();
+            this.updateEchoList();
+        });
+        document.addEventListener('syntonizeChanged', (e) => {
+            const {id, weaponType, rank} = e.detail;
+            if (this.userCharaDataManager.currentCharaModel.equipment.rank === rank) {
+                return; // 既に選択されている武器の場合は処理をスキップ
+            }
+            this.userCharaDataManager.setWeaponData(id, weaponType, rank);
+            // this.updateWeapon();
+            // this.updateEchoList();
+        });
+    }
+    observeFactorChange() {
+        this.subtotalScoreListView.onFactorChange(() => {
+            this.subtotalListManager.update();
+            this.userCharaDataManager.setScoreFactor(this.subtotalScoreListView.getFactors());
+            this.echoListManager.calcEchoScoreAll();
+        });
+
+        
+        this.subtotalScoreListView.onTypeChange((type) => {
+            this.subtotalListManager.update();
+            this.userCharaDataManager.setScoreFactorType(type);
+            this.echoListManager.calcEchoScoreAll();
+        });
+    }
+    observeEchoStatusChange() {
+        // echoListManagerのechoListChangedイベントを監視
+        document.addEventListener('echoListChanged', (e) => {
+            const echoList = e.detail.echoList;
+            this.userCharaDataManager.setEchoList(echoList);
+            this.subtotalListManager.update();
+            this.echoListManager.calcEchoScoreAll();
+        });
+    }
+}
 
 gameDataManager.loadData((data) => {
-    // Initialize the CharacterManager
-    new CharaSelecter();
-
-    // Instantiate UI
-    const scoreCheckerUI = new ScoreCheckerUI();
-
-    // OCRWindow with callback
-    new OCRWindow(function (ocrResult) {
-        console.log('OCR Result:', ocrResult);
-        // 1. echoName
-        if (ocrResult.echoName) scoreCheckerUI.setEchoByName(ocrResult.echoName);
-        // 2. mainStatus
-        if (ocrResult.mainStatus) scoreCheckerUI.setMainStatus(ocrResult.mainStatus);
-        // 3. subStatus
-        if (ocrResult.subStatus) scoreCheckerUI.setSubStatus(ocrResult.subStatus);
-        // 4. update main-option-2 and value (already handled in setEchoByName)
-    });
+    new WWScore(data);
 });

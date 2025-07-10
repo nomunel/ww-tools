@@ -22,9 +22,8 @@
             <p>ここに公式Discoardのキャラカードを<br>「Ctrl+V」または「ドラックアンドドロップ」するとスコアを計測できます。</p>
             <p>個別の音骸だけ更新したい場合は、<br>対象の音骸サムネイル欄をクリックしてください。</p>
         </div> -->
-        <textarea id="ocr-paste-area" placeholder="ここに
-公式Discoardのキャラカードを「Ctrl+V」などで張り付け、
-または「ドラックアンドドロップ」するとスコアを計測できます。"></textarea>
+        <textarea id="ocr-paste-area" placeholder="ここに公式Discoardのキャラカードを Paste、または
+Drag & Drop するとスコアを計測できます。"></textarea>
 
         <h1 id="chara-name">
             <img src="./img/common/icons/elements/Spectro.webp" width="60" height="60">
@@ -48,27 +47,73 @@
         <div id="total-score">
             <!-- <h2>Echo Rank</h2>
             <p>SS</p> -->
-            <h2>Total Score</h2>
+            <h2>Total Echo Score</h2>
             <p>150</p>
         </div>
+
+        <div id="base-status" class="status-list">
+            <h2>基礎ステータス</h2>
+            <ul>
+                <li><label>HP</label><input id="chara-hp" readonly></li>
+                <li><label>攻撃力</label><input id="chara-atk" readonly></li>
+                <li><label>防御力</label><input id="chara-def" readonly></li>
+            </ul>
+        </div>
+
+        <div id="weapon-data">
+            <h2>Weapon Name
+                <button id="weapon-change-button">
+                    <svg width="32" height="32"><use href="./img/common/icons/icons.svg#change"></use></svg>
+                </button>
+            </h2>
+            <figure class="rank5"><img src="./img/common/weapon/Broadblade_10011.webp" width="132" height="132"></figure>
+            <table>
+                <tr><th>攻撃力</th><td>500</td></tr>
+                <tr><th>クリティカルダメージ</th><td>24.4%</td></tr>
+            </table>
+            <p id="weapon-tuning-rank"><label>調律ランク<select name="">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+            </select></label></p>
+            <p class="syntonize" data-buff="30%">攻撃力12%アップ。通常攻撃発動時、以下の効果を獲得：自身の与ダメージが目標の防御力を8%無視する他、自身が直接与える【騒光効果】ダメージに、50%のダメージブーストを付与する。この効果は6秒間持続し、再獲得すると持続時間がリセットされる。</p>
+        </div>
+
+        <div id="subtotal-status" class="status-list">
+            <h2>サブステータス合計</h2>
+            <ul>
+                <li><label>HP</label><input id="echo-total-hp" readonly></li>
+                <li><label>攻撃力</label><input id="echo-total-atk" readonly></li>
+                <li><label>防御力</label><input id="echo-total-def" readonly></li>
+                <li><label>共鳴効率</label><input id="echo-total-energy-regen" readonly></li>
+                <li><label>クリティカル</label><input id="echo-total-critical-per" readonly></li>
+                <li><label>クリティカルダメージ</label><input id="echo-total-critical-dmg" readonly></li>
+                <li><label>通常攻撃ダメージアップ</label><input id="echo-total-normal-atk" readonly></li>
+                <li><label>重撃ダメージアップ</label><input id="echo-total-heavy-atk" readonly></li>
+                <li><label>共鳴スキルダメージアップ</label><input id="echo-total-skill-atk" readonly></li>
+                <li><label>共鳴解放ダメージアップ</label><input id="echo-total-liberation-atk" readonly></li>
+            </ul>
+        </div>
         
-        <div id="score-factors">
+        <div id="subtotal-score-list" class="status-list">
             <h2>比重値</h2>
             <select id="factor-type-select">
                 <option value="default">デフォルト</option>
                 <option value="custom">カスタム</option>
             </select>
             <ul>
-                <li><label>HP</label><input id="hp-factor" type="number" step="0.1" value="0.0"></li>
-                <li><label>攻撃力</label><input id="atk-factor" type="number" step="0.1" value="1.0"></li>
-                <li><label>防御力</label><input id="def-factor" type="number" step="0.1" value="0.0"></li>
-                <li><label>共鳴効率</label><input id="echo" type="number" step="0.1" value="0.6"></li>
-                <li><label>クリティカル</label><input id="critical-per-factor" type="number" step="0.1" value="2.0"></li>
-                <li><label>クリティカルダメージ</label><input id="critical-dmg-factor" type="number" step="0.1" value="1.0"></li>
-                <li><label>通常攻撃ダメージアップ</label><input id="normal-atk-factor" type="number" step="0.1" value="0.6"></li>
-                <li><label>重撃ダメージアップ</label><input id="heavy-atk-factor" type="number" step="0.1" value="0.0"></li>
-                <li><label>共鳴スキルダメージアップ</label><input id="resonance-skill-atk-factor" type="number" step="0.1" value="0.0"></li>
-                <li><label>共鳴解放ダメージアップ</label><input id="liberation-atk-factor" type="number" step="0.1" value="0.0"></li>
+                <li><input data-attribute="HP" id="factor-hp" type="number" step="0.1" value="0.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="攻撃力" id="factor-atk" type="number" step="0.1" value="1.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="防御力" id="factor-def" type="number" step="0.1" value="0.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="共鳴効率" id="factor-energy-regen" type="number" step="0.1" value="0.6" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="クリティカル" id="factor-critical-per" type="number" step="0.1" value="2.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="クリティカルダメージ" id="factor-critical-dmg" type="number" step="0.1" value="1.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="通常攻撃ダメージアップ" id="factor-normal-atk" type="number" step="0.1" value="0.6" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="重撃ダメージアップ" id="factor-heavy-atk" type="number" step="0.1" value="0.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="共鳴スキルダメージアップ" id="factor-skill-atk" type="number" step="0.1" value="0.0" inputmode="decimal" min="0"><b>15</b></li>
+                <li><input data-attribute="共鳴解放ダメージアップ" id="factor-liberation-atk" type="number" step="0.1" value="0.0" inputmode="decimal" min="0"><b>15</b></li>
             </ul>
         </div>
         <ul id="echo-list">
@@ -76,12 +121,12 @@
                 <figure><img src="./img/common/echo/cost4/H71.webp" width="160" height="160"></figure>
                 <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
                 <div class="cost">4</div>
-                <table class="main-stats">
+                <table class="main-status">
                     <tr><th>クリティカルダメージ</th><td>44%</td></tr>
                     <tr><th>攻撃力</th><td>150</td></tr>
                 </table>
-                <table class="sub-stats">
-                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                <table class="sub-status">
+                    <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
                     <tbody>
                         <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
                         <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
@@ -91,18 +136,18 @@
                     </tbody>
                 </table>
                 <p class="rank"><i>Rank</i><b>SS</b></p>
-                <p class="score"><i>Score</i><b>75</b></p>
+                <p class="score"><i>Score</i><b>75.0</b></p>
             </li>
             <li>
                 <figure><img src="./img/common/echo/cost4/Z01.webp" width="160" height="160"></figure>
                 <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
                 <div class="cost">4</div>
-                <table class="main-stats">
+                <table class="main-status">
                     <tr><th>気動ダメージアップ</th><td>30%</td></tr>
                     <tr><th>攻撃力</th><td>150</td></tr>
                 </table>
-                <table class="sub-stats">
-                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                <table class="sub-status">
+                    <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
                     <tbody>
                         <tr><th>通常攻撃ダメージアップ</th><td>10.0%</td><td>6.0</td></tr>
                         <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
@@ -112,18 +157,18 @@
                     </tbody>
                 </table>
                 <p class="rank"><i>Rank</i><b>SS</b></p>
-                <p class="score"><i>Score</i><b>75</b></p>
+                <p class="score"><i>Score</i><b>75.0</b></p>
             </li>
             <li>
                 <figure><img src="./img/common/echo/cost4/H80.webp" width="160" height="160"></figure>
                 <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
                 <div class="cost">4</div>
-                <table class="main-stats">
+                <table class="main-status">
                     <tr><th>気動ダメージアップ</th><td>30%</td></tr>
                     <tr><th>攻撃力</th><td>150</td></tr>
                 </table>
-                <table class="sub-stats">
-                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                <table class="sub-status">
+                    <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
                     <tbody>
                         <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
                         <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
@@ -133,18 +178,18 @@
                     </tbody>
                 </table>
                 <p class="rank"><i>Rank</i><b>SS</b></p>
-                <p class="score"><i>Score</i><b>75</b></p>
+                <p class="score"><i>Score</i><b>75.0</b></p>
             </li>
             <li>
                 <figure><img src="./img/common/echo/cost4/H72.webp" width="160" height="160"></figure>
                 <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
                 <div class="cost">4</div>
-                <table class="main-stats">
+                <table class="main-status">
                     <tr><th>攻撃力</th><td>28.8%</td></tr>
                     <tr><th>攻撃力</th><td>150</td></tr>
                 </table>
-                <table class="sub-stats">
-                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                <table class="sub-status">
+                    <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
                     <tbody>
                         <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
                         <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
@@ -154,18 +199,18 @@
                     </tbody>
                 </table>
                 <p class="rank"><i>Rank</i><b>SS</b></p>
-                <p class="score"><i>Score</i><b>75</b></p>
+                <p class="score"><i>Score</i><b>75.0</b></p>
             </li>
             <li>
                 <figure><img src="./img/common/echo/cost4/H73.webp" width="160" height="160"></figure>
                 <img class="element-type" src="./img/common/icons/T_IconElementAttriWind.webp" width="46" height="46">
                 <div class="cost">4</div>
-                <table class="main-stats">
+                <table class="main-status">
                     <tr><th>攻撃力</th><td>28.8%</td></tr>
                     <tr><th>HP</th><td>2280</td></tr>
                 </table>
-                <table class="sub-stats">
-                    <thead><th>Sub Status</th><th>Value</th><th>Score</th></thead>
+                <table class="sub-status">
+                    <thead><tr><th>Sub Status</th><th>Value</th><th>Score</th></tr></thead>
                     <tbody>
                         <tr><th>クリティカルダメージ</th><td>21.0%</td><td>21.0</td></tr>
                         <tr><th>クリティカル</th><td>10.5%</td><td>21.0</td></tr>
@@ -175,7 +220,7 @@
                     </tbody>
                 </table>
                 <p class="rank"><i>Rank</i><b>SS</b></p>
-                <p class="score"><i>Score</i><b>75</b></p>
+                <p class="score"><i>Score</i><b>75.0</b></p>
             </li>
         </ul>
     </section>
@@ -190,7 +235,7 @@
     <p>Game contents are trademarks and copyrights of Kuro Games.</p>
 </footer>
 
-<div id="chara-selecter-window" style="display: none;">
+<div id="chara-selecter" class="tab-selecter-modal" style="display: none;">
     <nav class="tabs">
         <button data-attribute="凝縮">凝縮</button>
         <button data-attribute="焦熱">焦熱</button>
@@ -199,15 +244,30 @@
         <button data-attribute="回折">回折</button>
         <button data-attribute="消滅">消滅</button>
     </nav>
-    <div id="characters">
+    <div class="items">
         
     </div>
-    <button id="close-popup">閉じる</button>
+    <button class="cancel-button">閉じる</button>
+</div>
+
+<div id="weapon-selecter" class="tab-selecter-modal" style="display: none;">
+    <nav class="tabs">
+        <button data-attribute="長刃">長刃</button>
+        <button data-attribute="迅刀">迅刀</button>
+        <button data-attribute="拳銃">拳銃</button>
+        <button data-attribute="手甲">手甲</button>
+        <button data-attribute="増幅器">増幅器</button>
+    </nav>
+    <div class="items">
+        
+    </div>
+    <button class="cancel-button">閉じる</button>
 </div>
 
 <div id="echo-scan-window">
     <!-- <img id="matched-echo-thumb" src="./img/common/echo/cost4/Z02.webp" alt="最も近いEcho画像"> -->
     <img id="matched-echo-thumb" width="256" height="256" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" alt="最も近いEcho画像">
+    <img id="croped-paste-image" width="256" height="256" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" alt="加工済み画像プレビュー">
     <div id="score-checker-window">
         <select id="echo-select">
             <optgroup label="COST1">

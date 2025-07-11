@@ -1158,7 +1158,7 @@ class OCRWindowController {
         const sw = this.img.width * cropDefaults.swRate;
         const sh = this.img.height * cropDefaults.shRate;
 
-        const scale = 4;
+        const scale = 2;
         weaponNameCanvas.width = sw * scale;
         weaponNameCanvas.height = sh * scale;
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
@@ -1167,6 +1167,7 @@ class OCRWindowController {
         (async () => {
             const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
+                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
             });
             
@@ -1181,6 +1182,11 @@ class OCRWindowController {
                 }
                 // No match, shorten the name from the end and retry
                 tempName = tempName.slice(0, -1);
+            }
+            if (!foundWeaponDB) {
+                let tempName = ocrWeaponName;
+
+                
             }
             console.log('ocrWeaponName:', ocrWeaponName);
 

@@ -335,7 +335,7 @@ class WeaponSelecter {
         // 一覧データ生成
         const weaponListData = this.weaponsDB.map(w => ({
             name: w.name,
-            attr: w.weaponType,
+            attr: WEAPON_TYPES["ja"][w.weaponType - 1],
             src: ImageUtil.getWeaponImagePath(w, 'thumb')
         }));
 
@@ -2627,7 +2627,7 @@ class WWScore{
             equipmentData.id = this.userCharaDataManager.getWeaponDefaultId(equipmentData.weaponType);
         }
         this.weaponSelecter.setSelectedWeaponById(equipmentData.id, equipmentData.rank);
-        this.weaponSelecter.tabSelecterModalView.isolate(equipmentData.weaponType);
+        this.weaponSelecter.tabSelecterModalView.isolate(WEAPON_TYPES["ja"][equipmentData.weaponType - 1]);
 
         const charaAtk = this.userCharaDataManager.getCurrentCharaDB().baseATK;
         const weaponAtk = this.weaponSelecter.weaponTable.querySelector('td').textContent.trim();

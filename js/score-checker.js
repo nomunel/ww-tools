@@ -1185,7 +1185,14 @@ class OCRWindowController {
             }
             if (!foundWeaponDB) {
                 let tempName = ocrWeaponName;
-
+                while (tempName.length > 0) {
+                    foundWeaponDB = weaponsDB.find(c => c.name.includes(tempName));
+                    if (foundWeaponDB) {
+                        break; // Match found, exit loop
+                    }
+                    // No match, shorten the name from the start and retry
+                    tempName = tempName.slice(1);
+                }
                 
             }
             console.log('ocrWeaponName:', ocrWeaponName);
@@ -1343,7 +1350,19 @@ class OCRWindowController {
                 cost4: echoData.filter(e => e.cost === 4).map(e => echoImgDir + 'cost4/' + e.id + '.webp'),
             };
         }
-        this.updateEchoMatch(canvas, this.echoImageList['cost' + cost], slotIndex);
+        let imageListToSearch = [];
+        if (cost === '不明') {
+            // コスト不明の場合、全コストの画像を検索対象にする
+            imageListToSearch = [
+            ...this.echoImageList.cost1,
+            ...this.echoImageList.cost3,
+            ...this.echoImageList.cost4
+            ];
+        } else {
+            imageListToSearch = this.echoImageList['cost' + cost] || [];
+        }
+
+        this.updateEchoMatch(canvas, imageListToSearch, slotIndex);
     }
     updateEchoMatch(canvas, echoImageList, slotIndex) {
         const cropX = parseInt(this.view.echoCropInputs.x.value, 10) || 0;

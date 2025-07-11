@@ -1257,7 +1257,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 3;
+        const scale = 10;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;

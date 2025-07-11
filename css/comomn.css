@@ -837,7 +837,7 @@ footer{
                 }
             }
             td{
-                width: 17%;
+                width: 16%;
                 text-align: right;
                 &:last-child{
                     color: white;

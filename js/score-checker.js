@@ -1,6 +1,4 @@
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.esm.min.js";
-const { createWorker } = Tesseract;
-const tesseractWorker = await createWorker(['eng', 'jpn']);
 
 const isDebugMode = false; // デバッグモードのフラグ
 
@@ -1123,8 +1121,9 @@ class OCRWindowController {
 
 
         // OCRでキャラ名を取得
+        const { createWorker } = Tesseract;
         (async () => {
-            const worker = tesseractWorker;
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1164,8 +1163,9 @@ class OCRWindowController {
         weaponNameCanvas.height = sh * scale;
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
 
+        const { createWorker } = Tesseract;
         (async () => {
-            const worker = tesseractWorker;
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 preserve_interword_spaces: true,
             });
@@ -1265,8 +1265,9 @@ class OCRWindowController {
         // --- Preview ---
         this.view.setCropedPasteImage(canvas.toDataURL(), sw, sh);
         // --- OCR ---
+        const { createWorker } = Tesseract;
         (async () => {
-            const worker = tesseractWorker;
+            const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(canvas, {
                 tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,

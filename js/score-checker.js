@@ -1123,7 +1123,7 @@ class OCRWindowController {
         // OCRでキャラ名を取得
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1165,7 +1165,7 @@ class OCRWindowController {
 
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 preserve_interword_spaces: true,
             });

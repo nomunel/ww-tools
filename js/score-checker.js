@@ -1082,12 +1082,16 @@ class OCRWindowController {
             if (isLarge) {
                 await this.charaNameOCR();
                 await this.weaponNameOCR();
-                // 5つのエコースロットを順にOCR
-                for (let index = 0; index < 5; index++) {
-                    this.applyFiltersAndOCR(index);
+
+                if (isDebugMode) {
+                    this.applyFiltersAndOCR(4);
                 }
-                
-                // this.applyFiltersAndOCR(0);
+                else{
+                    // 5つのエコースロットを順にOCR
+                    for (let index = 0; index < 5; index++) {
+                        this.applyFiltersAndOCR(index);
+                    }
+                }
             } else {
                 this.applyFiltersAndOCR(-1);
             }
@@ -1235,7 +1239,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 2;
+        const scale = 3;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
@@ -1464,6 +1468,7 @@ class OcrParser {
     }
 
     normalizeParamPart(paramPart) {
+        paramPart = paramPart.replace('攻撃カ', '攻撃力');
         for (const label of this.labels) {
             if (paramPart.includes(label)) {
             return label;
@@ -1585,6 +1590,7 @@ class OcrParser {
             const mainStatus1Line = lines[2];
             const value1 = this.getValuePart(mainStatus1Line)
             let param1Part = mainStatus1Line.replace(value1, '')
+            console.log('mainStatus1Line param1Part:', param1Part);
             param1Part = this.normalizeParamPart(param1Part);
             const paramName1 = this.correctParamName(param1Part) || this.getClosestLabel(param1Part);
 

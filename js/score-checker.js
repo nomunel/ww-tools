@@ -1,6 +1,6 @@
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.esm.min.js";
 
-const isDebugMode = false; // デバッグモードのフラグ
+const isDebugMode = true; // デバッグモードのフラグ
 
 const MAIN_STATUS_1_LABELS = [
     "HP",
@@ -38,6 +38,10 @@ const WEAPON_TYPES = {
     "ja": ["長刃", "迅刀", "拳銃", "手甲", "増幅器"],
     "en": ["Broadblade", "Sword", "Pistols", "Gauntlets", "Rectifier"]
 };
+
+
+const WHITE_LIST = [...new Set([...MAIN_STATUS_1_LABELS, ...SUB_STATUS_LABELS].join(''))].join('') + '0123456789.%';
+
 
 class ImageUtil {
     static getCharaImagePath(charaData, type) {
@@ -1078,10 +1082,12 @@ class OCRWindowController {
             if (isLarge) {
                 await this.charaNameOCR();
                 await this.weaponNameOCR();
-                // 5つのエコースロットを順にOCR
-                for (let index = 0; index < 5; index++) {
-                    this.applyFiltersAndOCR(index);
-                }
+                // // 5つのエコースロットを順にOCR
+                // for (let index = 0; index < 5; index++) {
+                //     this.applyFiltersAndOCR(index);
+                // }
+                
+                this.applyFiltersAndOCR(0);
             } else {
                 this.applyFiltersAndOCR(-1);
             }
@@ -1229,7 +1235,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 4;
+        const scale = 2;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
@@ -1237,7 +1243,7 @@ class OCRWindowController {
         ctx.filter = 'none';
         if (isLarge) {
             ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-            ctx.fillRect(0, 0, canvas.width * 0.47, canvas.height * 0.36);
+            ctx.fillRect(0, 0, canvas.width * 0.48, canvas.height * 0.36);
         }
         // --- Sharp/Contrast ---
         let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1282,7 +1288,8 @@ class OCRWindowController {
         (async () => {
             const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(canvas, {
-                tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+                tessedit_char_whitelist: WHITE_LIST,
+                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
             });
             let cleanedText = this.cleanText(text);
@@ -1293,9 +1300,10 @@ class OCRWindowController {
 
             // --- 自己チェック＆contrast自動調整 ---
             const check = this.ocrResultData.selfCheck();
+            console.log('OCR Result Check:', check);
             if (!check.valid && contrast > -50) {
                 // contrastを-10下げて再実行
-                contrastInput.value = contrast - 10;
+                contrastInput.value = contrast - 25;
                 this.applyFiltersAndOCR(slotIndex, true);
                 return;
             }
@@ -1446,11 +1454,7 @@ class OCRWindowController {
 class OcrParser {
     constructor(text) {
         this.text = text || '';
-        this.labels = [
-            "クリティカルダメージ", "クリティカル", "通常攻撃ダメージアップ", "重撃ダメージアップ",
-            "共鳴解放ダメージアップ", "共鳴スキルダメージアップ", "共鳴効率", "攻撃力", "防御力",
-            "HP回復効果アップ", "HP"
-        ];
+        this.labels = [...new Set([...MAIN_STATUS_1_LABELS, ...SUB_STATUS_LABELS])];
     }
 
     correctParamName(paramPart) {
@@ -2418,7 +2422,6 @@ class EchoListManager {
         // 新しいinput要素を毎回生成して使う（多重編集バグ防止）
         const input = document.createElement('input');
         input.type = 'text';
-        input.style.width = '60px';
         input.value = originalValue;
         td.appendChild(input);
         input.focus();

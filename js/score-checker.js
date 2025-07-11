@@ -804,6 +804,9 @@ class OCRWindowView {
         this.echoCropPreviewImg = null;
         this.echoCropInputs = null;
         this.cropInputs = {};
+        this.charaNameCropInputsAppended = false;
+        this.charaNameCropPreviewImg = null;
+        this.charaNameCropInputs = null;
     }
     setupControls() {
         this.reloadBtn.innerText = '再読み込み';
@@ -934,6 +937,57 @@ class OCRWindowView {
         echoCropCanvas.getContext('2d').drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
         this.echoCropPreviewImg.src = echoCropCanvas.toDataURL();
     }
+    setupCharaNameCropInputs(cropValues, canvas, onChange) {
+        if (!this.charaNameCropInputsAppended) {
+            const wrapper = document.createElement('div');
+            wrapper.style.margin = '8px 0';
+            wrapper.innerHTML = `
+                <hr>
+                <p>キャラ名切り出し</p>
+                <label>sxRate: </label><input type="number" min="0" max="1" step="0.001" value="${cropValues.sxRate}" style="width:60px;" id="chara-crop-sxRate">
+                <label>syRate: </label><input type="number" min="0" max="1" step="0.001" value="${cropValues.syRate}" style="width:60px;" id="chara-crop-syRate">
+                <label>swRate: </label><input type="number" min="0" max="1" step="0.001" value="${cropValues.swRate}" style="width:60px;" id="chara-crop-swRate">
+                <label>shRate: </label><input type="number" min="0" max="1" step="0.001" value="${cropValues.shRate}" style="width:60px;" id="chara-crop-shRate">
+            `;
+            this.ocrWindow.appendChild(wrapper);
+            this.charaNameCropInputs = {
+                sxRate: document.getElementById('chara-crop-sxRate'),
+                syRate: document.getElementById('chara-crop-syRate'),
+                swRate: document.getElementById('chara-crop-swRate'),
+                shRate: document.getElementById('chara-crop-shRate')
+            };
+            Object.values(this.charaNameCropInputs).forEach(input => {
+                input.addEventListener('change', () => onChange(canvas));
+            });
+            this.charaNameCropInputsAppended = true;
+        }
+    }
+    updateCharaNameCropPreview(canvas) {
+        if (!this.charaNameCropPreviewImg) {
+            this.charaNameCropPreviewImg = document.createElement('img');
+            this.charaNameCropPreviewImg.alt = 'Chara Name Crop Preview';
+            this.charaNameCropPreviewImg.style.display = 'block';
+            this.charaNameCropPreviewImg.style.margin = '10px auto';
+            this.charaNameCropPreviewImg.style.maxWidth = '100%';
+            this.charaNameCropPreviewImg.style.border = '1px solid red';
+            this.ocrWindow.appendChild(this.charaNameCropPreviewImg);
+        }
+        const sxRate = parseFloat(this.charaNameCropInputs.sxRate.value) || 0;
+        const syRate = parseFloat(this.charaNameCropInputs.syRate.value) || 0;
+        const swRate = parseFloat(this.charaNameCropInputs.swRate.value) || 0;
+        const shRate = parseFloat(this.charaNameCropInputs.shRate.value) || 0;
+
+        const sx = canvas.width * sxRate;
+        const sy = canvas.height * syRate;
+        const sw = canvas.width * swRate;
+        const sh = canvas.height * shRate;
+
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = sw;
+        cropCanvas.height = sh;
+        cropCanvas.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+        this.charaNameCropPreviewImg.src = cropCanvas.toDataURL();
+    }
 }
 
 // Controller: OCRWindowController
@@ -1019,10 +1073,11 @@ class OCRWindowController {
     applyFiltersAndOCRs() {
         const imgData = this.imgData;
         if (!imgData) return;
-        this.img.onload = () => {
+        this.img.onload = async () => {
             const isLarge = this.img.width > 1000;
             if (isLarge) {
-                // this.applyFiltersAndOCR(1);
+                await this._processLargeImage();
+                // 5つのエコースロットを順にOCR
                 for (let index = 0; index < 5; index++) {
                     this.applyFiltersAndOCR(index);
                 }
@@ -1031,6 +1086,66 @@ class OCRWindowController {
             }
         };
         this.img.src = imgData;
+    }
+
+    async _processLargeImage() {
+        // isLargeの場合、左上のキャラ名を読み取ってキャラを切り替える
+        const charaNameCanvas = document.createElement('canvas');
+        const ctx = charaNameCanvas.getContext('2d');
+        
+        const cropDefaults = { sxRate: 0.035, syRate: 0.02, swRate: 0.36, shRate: 0.055 };
+        let sx, sy, sw, sh;
+
+        if (this.isDebugMode) {
+            this.view.setupCharaNameCropInputs(cropDefaults, this.img, (canvas) => {
+                this.view.updateCharaNameCropPreview(canvas);
+            });
+            this.view.updateCharaNameCropPreview(this.img);
+            const inputs = this.view.charaNameCropInputs;
+            sx = this.img.width * parseFloat(inputs.sxRate.value);
+            sy = this.img.height * parseFloat(inputs.syRate.value);
+            sw = this.img.width * parseFloat(inputs.swRate.value);
+            sh = this.img.height * parseFloat(inputs.shRate.value);
+        } else {
+            sx = this.img.width * cropDefaults.sxRate;
+            sy = this.img.height * cropDefaults.syRate;
+            sw = this.img.width * cropDefaults.swRate;
+            sh = this.img.height * cropDefaults.shRate;
+        }
+
+        const scale = 1;
+        charaNameCanvas.width = sw * scale;
+        charaNameCanvas.height = sh * scale;;
+        ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
+
+
+        // OCRでキャラ名を取得
+        const { createWorker } = Tesseract;
+        (async () => {
+            const worker = await createWorker(['eng', 'jpn']);
+            const { data: { text } } = await worker.recognize(charaNameCanvas, {
+                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+                preserve_interword_spaces: true,
+            });
+            
+            const ocrCharaName = text.replace(/\s/g, '');
+            const charactersDB = gameDataManager.getCharactersDB();
+            const foundCharaDB = charactersDB.find(c => {
+                let tempName = ocrCharaName;
+                while (tempName.length > 0) {
+                    if (c.name === tempName) {
+                        return true;
+                    }
+                    tempName = tempName.slice(0, -1);
+                }
+                return false;
+            });
+
+            if (foundCharaDB) {
+                const event = new CustomEvent('characterChanged', { detail: foundCharaDB });
+                document.dispatchEvent(event);
+            }
+        })();
     }
     applyFiltersAndOCR(slotIndex = 0, isRetry = false) {
         const img = this.img;

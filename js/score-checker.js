@@ -1123,10 +1123,14 @@ class OCRWindowController {
         // OCRでキャラ名を取得
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
+            const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
+                langPath: [
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/en/4.0.0_best_int/en.traineddata.gz',
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                ]
             });
             
             const ocrCharaName = text.replace(/\s/g, '');
@@ -1165,9 +1169,13 @@ class OCRWindowController {
 
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
+            const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 preserve_interword_spaces: true,
+                langPath: [
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/en/4.0.0_best_int/en.traineddata.gz',
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                ]
             });
             
             const ocrWeaponName = text.replace(/\s/g, '');
@@ -1271,6 +1279,10 @@ class OCRWindowController {
             const { data: { text } } = await worker.recognize(canvas, {
                 tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
+                langPath: [
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/en/4.0.0_best_int/en.traineddata.gz',
+                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                ]
             });
             let cleanedText = this.cleanText(text);
             if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;

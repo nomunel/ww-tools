@@ -1170,8 +1170,7 @@ class OCRWindowController {
                 preserve_interword_spaces: true,
             });
             
-            // const ocrWeaponName = text.replace(/\s/g, '');
-            const ocrWeaponName = '定めを覆す草冠';
+            const ocrWeaponName = text.replace(/\s/g, '');
             const weaponsDB = gameDataManager.getWeaponsDB();
             let foundWeaponDB = null;
             let tempName = ocrWeaponName;

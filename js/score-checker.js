@@ -1076,7 +1076,8 @@ class OCRWindowController {
         this.img.onload = async () => {
             const isLarge = this.img.width > 1000;
             if (isLarge) {
-                await this._processLargeImage();
+                await this.charaNameOCR();
+                await this.weaponNameOCR();
                 // 5つのエコースロットを順にOCR
                 for (let index = 0; index < 5; index++) {
                     this.applyFiltersAndOCR(index);
@@ -1088,7 +1089,7 @@ class OCRWindowController {
         this.img.src = imgData;
     }
 
-    async _processLargeImage() {
+    async charaNameOCR() {
         // isLargeの場合、左上のキャラ名を読み取ってキャラを切り替える
         const charaNameCanvas = document.createElement('canvas');
         const ctx = charaNameCanvas.getContext('2d');
@@ -1143,6 +1144,48 @@ class OCRWindowController {
 
             if (foundCharaDB) {
                 const event = new CustomEvent('characterChanged', { detail: foundCharaDB });
+                document.dispatchEvent(event);
+            }
+        })();
+    }
+    async weaponNameOCR() {
+        const weaponNameCanvas = document.createElement('canvas');
+        const ctx = weaponNameCanvas.getContext('2d');
+        
+        const cropDefaults = { sxRate: 0.83, syRate: 0.415, swRate: 0.152, shRate: 0.055 };
+        const sx = this.img.width * cropDefaults.sxRate;
+        const sy = this.img.height * cropDefaults.syRate;
+        const sw = this.img.width * cropDefaults.swRate;
+        const sh = this.img.height * cropDefaults.shRate;
+
+        const scale = 4;
+        weaponNameCanvas.width = sw * scale;
+        weaponNameCanvas.height = sh * scale;
+        ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
+
+        const { createWorker } = Tesseract;
+        (async () => {
+            const worker = await createWorker(['eng', 'jpn']);
+            const { data: { text } } = await worker.recognize(weaponNameCanvas, {
+                preserve_interword_spaces: true,
+            });
+            
+            const ocrWeaponName = text.replace(/\s/g, '');
+            const weaponsDB = gameDataManager.getWeaponsDB();
+            const foundWeaponDB = weaponsDB.find(w => {
+                let tempName = ocrWeaponName;
+                while (tempName.length > 0) {
+                    if (w.name === tempName) {
+                        return true;
+                    }
+                    tempName = tempName.slice(0, -1);
+                }
+                return false;
+            });
+            console.log('ocrWeaponName:', ocrWeaponName);
+
+            if (foundWeaponDB) {
+                const event = new CustomEvent('weaponChanged', { detail: foundWeaponDB });
                 document.dispatchEvent(event);
             }
         })();

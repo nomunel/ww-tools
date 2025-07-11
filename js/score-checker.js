@@ -1,6 +1,6 @@
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.esm.min.js";
 
-const isDebugMode = true; // デバッグモードのフラグ
+const isDebugMode = false; // デバッグモードのフラグ
 
 const MAIN_STATUS_1_LABELS = [
     "HP",
@@ -1082,12 +1082,12 @@ class OCRWindowController {
             if (isLarge) {
                 await this.charaNameOCR();
                 await this.weaponNameOCR();
-                // // 5つのエコースロットを順にOCR
-                // for (let index = 0; index < 5; index++) {
-                //     this.applyFiltersAndOCR(index);
-                // }
+                // 5つのエコースロットを順にOCR
+                for (let index = 0; index < 5; index++) {
+                    this.applyFiltersAndOCR(index);
+                }
                 
-                this.applyFiltersAndOCR(0);
+                // this.applyFiltersAndOCR(0);
             } else {
                 this.applyFiltersAndOCR(-1);
             }
@@ -1464,13 +1464,49 @@ class OcrParser {
     }
 
     normalizeParamPart(paramPart) {
-        if (
-            paramPart.length > 0 &&
-            !this.labels.some(label => paramPart[0] === label[0])
-        ) {
-            paramPart = paramPart.substring(1); // 1文字だけ削除
+        for (const label of this.labels) {
+            if (paramPart.includes(label)) {
+            return label;
+            }
         }
-        return paramPart;
+        // Levenshtein distance to find the closest match
+        let bestMatch = '';
+        let minDistance = Infinity;
+
+        const levenshtein = (s1, s2) => {
+            if (!s1.length) return s2.length;
+            if (!s2.length) return s1.length;
+            const arr = [];
+            for (let i = 0; i <= s2.length; i++) {
+                arr[i] = [i];
+                for (let j = 1; j <= s1.length; j++) {
+                    arr[i][j] =
+                    i === 0
+                        ? j
+                        : Math.min(
+                        arr[i - 1][j] + 1,
+                        arr[i][j - 1] + 1,
+                        arr[i - 1][j - 1] + (s1[j - 1] === s2[i - 1] ? 0 : 1)
+                        );
+                }
+            }
+            return arr[s2.length][s1.length];
+        };
+
+        paramPart = paramPart.substring(1); // 1文字だけ削除
+        for (const label of this.labels) {
+            const distance = levenshtein(paramPart, label);
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = label;
+            }
+        }
+
+        // Return the best match if the distance is reasonable
+        if (minDistance <= Math.floor(paramPart.length / 2)) {
+            return bestMatch;
+        }
+        return '';
     }
     getValuePart(text) {
         text = text.replace(

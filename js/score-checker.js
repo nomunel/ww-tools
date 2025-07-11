@@ -1,6 +1,9 @@
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.esm.min.js";
+const { createWorker } = Tesseract;
+const worker = await createWorker(['eng', 'jpn']);
 
 const isDebugMode = false; // デバッグモードのフラグ
+const TEST_SLOT = 2; // デバッグ用のスロット番号
 
 const MAIN_STATUS_1_LABELS = [
     "HP",
@@ -800,9 +803,9 @@ class OCRWindowView {
         this.matchedEchoThumb = document.getElementById('matched-echo-thumb');
         this.cropedPasteImage = document.getElementById('croped-paste-image');
         this.reloadBtn = document.createElement('button');
-        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 0.0);
-        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 0.0);
-        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, 0);
+        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 1.0);
+        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 1.0);
+        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, -50);
         this.cropInputsAppended = false;
         this.echoCropInputsAppended = false;
         this.echoCropPreviewImg = null;
@@ -1019,7 +1022,7 @@ class OCRWindowController {
     addEventListeners() {
         if (isDebugMode) {
             this.view.closeBtn.onclick = () => this.view.hideWindow();
-            this.view.reloadBtn.onclick = () => this.applyFiltersAndOCR();
+            this.view.reloadBtn.onclick = () => this.applyFiltersAndOCR(TEST_SLOT);
         }
 
         this.view.pasteArea.addEventListener('paste', (e) => this.handlePaste(e));
@@ -1101,7 +1104,7 @@ class OCRWindowController {
                 await this.weaponNameOCR();
 
                 if (isDebugMode) {
-                    this.applyFiltersAndOCR(0);
+                    this.applyFiltersAndOCR(TEST_SLOT);
                 }
                 else{
                     // 5つのエコースロットを順にOCR
@@ -1148,9 +1151,7 @@ class OCRWindowController {
 
 
         // OCRでキャラ名を取得
-        const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1190,9 +1191,7 @@ class OCRWindowController {
         weaponNameCanvas.height = sh * scale;
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
 
-        const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1256,7 +1255,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 8;
+        const scale = 3;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
@@ -1264,7 +1263,7 @@ class OCRWindowController {
         ctx.filter = 'none';
         if (isLarge) {
             ctx.fillStyle = 'rgba(17, 11, 21, 1)';
-            ctx.fillRect(0, 0, canvas.width * 0.467, canvas.height * 0.36);
+            ctx.fillRect(0, 0, canvas.width * 0.475, canvas.height * 0.36);
         }
         // --- Sharp/Contrast ---
         let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1290,7 +1289,7 @@ class OCRWindowController {
             }
         }
         const contrastInput = this.view.contrastControl.slider;
-        if (!isRetry) contrastInput.value = '0';
+        // if (!isRetry) contrastInput.value = '0';
 
         let contrast = parseFloat(contrastInput.value);
         if (contrast !== 0) {
@@ -1305,9 +1304,7 @@ class OCRWindowController {
         // --- Preview ---
         this.view.setCropedPasteImage(canvas.toDataURL(), sw, sh);
         // --- OCR ---
-        const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(canvas, {
                 tessedit_char_whitelist: WHITE_LIST,
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',

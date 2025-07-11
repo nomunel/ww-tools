@@ -1128,8 +1128,8 @@ class OCRWindowController {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
                 langPath: [
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz',
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                    './tesseract/eng.traineddata.gz',
+                    './tesseract/jpn.traineddata.gz',
                 ]
             });
             
@@ -1173,8 +1173,8 @@ class OCRWindowController {
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 preserve_interword_spaces: true,
                 langPath: [
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz',
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                    './tesseract/eng.traineddata.gz',
+                    './tesseract/jpn.traineddata.gz',
                 ]
             });
             
@@ -1280,8 +1280,8 @@ class OCRWindowController {
                 tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
                 langPath: [
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz',
-                    'https://cdn.jsdelivr.net/npm/@tesseract.js-data/jpn/4.0.0_best_int/jpn.traineddata.gz',
+                    './tesseract/eng.traineddata.gz',
+                    './tesseract/jpn.traineddata.gz',
                 ]
             });
             let cleanedText = this.cleanText(text);

@@ -1119,15 +1119,17 @@ class OCRWindowController {
         charaNameCanvas.height = sh * scale;;
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
 
-
         // OCRでキャラ名を取得
-        const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
-            const { data: { text } } = await worker.recognize(charaNameCanvas, {
-                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
-                preserve_interword_spaces: true,
-            });
+            const { data: { text } } = await Tesseract.recognize(
+                charaNameCanvas,
+                'eng+jpn',
+                {
+                    langPath: './tessdata/',
+                    // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+                    preserve_interword_spaces: true,
+                }
+            );
             
             const ocrCharaName = text.replace(/\s/g, '');
             const charactersDB = gameDataManager.getCharactersDB();
@@ -1163,13 +1165,16 @@ class OCRWindowController {
         weaponNameCanvas.height = sh * scale;
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
 
-        const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker('jpn');
-            const { data: { text } } = await worker.recognize(weaponNameCanvas, {
-                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
-                preserve_interword_spaces: true,
-            });
+            const { data: { text } } = await Tesseract.recognize(
+                weaponNameCanvas,
+                'eng+jpn',
+                {
+                    langPath: './tessdata/',
+                    // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+                    preserve_interword_spaces: true,
+                }
+            );
             
             const ocrWeaponName = text.replace(/\s/g, '');
             const weaponsDB = gameDataManager.getWeaponsDB();

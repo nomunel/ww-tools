@@ -1152,6 +1152,7 @@ class OCRWindowController {
 
         // OCRでキャラ名を取得
         (async () => {
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1192,6 +1193,7 @@ class OCRWindowController {
         ctx.drawImage(this.img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
 
         (async () => {
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
@@ -1305,6 +1307,7 @@ class OCRWindowController {
         this.view.setCropedPasteImage(canvas.toDataURL(), sw, sh);
         // --- OCR ---
         (async () => {
+            const worker = await createWorker(['eng', 'jpn']);
             const { data: { text } } = await worker.recognize(canvas, {
                 tessedit_char_whitelist: WHITE_LIST,
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',

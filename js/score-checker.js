@@ -1074,6 +1074,23 @@ class OCRWindowController {
         };
         reader.readAsDataURL(imageFile);
     }
+    fixMainStatus2(){
+        // mainStatus2 の穴埋め
+        let cost = this.ocrResultData.cost;
+
+        if (cost === '1') {
+            this.ocrResultData.propertyName = 'HP';
+            this.ocrResultData.value = 2280;
+        }
+        else if (cost === '3') {
+            this.ocrResultData.propertyName = '攻撃力';
+            this.ocrResultData.value = 100;
+        }
+        else if (cost === '4') {
+            this.ocrResultData.propertyName = '攻撃力';
+            this.ocrResultData.value = 150;
+        }
+    }
     applyFiltersAndOCRs() {
         const imgData = this.imgData;
         if (!imgData) return;
@@ -1084,7 +1101,7 @@ class OCRWindowController {
                 await this.weaponNameOCR();
 
                 if (isDebugMode) {
-                    this.applyFiltersAndOCR(4);
+                    this.applyFiltersAndOCR(0);
                 }
                 else{
                     // 5つのエコースロットを順にOCR
@@ -1225,7 +1242,7 @@ class OCRWindowController {
                 sxRate: [0.033, 0.23, 0.424, 0.619, 0.814],
                 syRate: 0.03
             };
-            this.view.setupCropInputs(defaults, slotIndex, () => this.applyFiltersAndOCR(img, isLarge));
+            this.view.setupCropInputs(defaults, slotIndex, () => this.applyFiltersAndOCR(slotIndex));
             this.view.updateCropInputs(defaults, slotIndex);
             const swRate = parseFloat(this.view.cropInputs.swRate.value);
             const shRate = parseFloat(this.view.cropInputs.shRate.value);
@@ -1239,15 +1256,15 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 3;
+        const scale = 6;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw * scale, sh * scale);
         ctx.filter = 'none';
         if (isLarge) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-            ctx.fillRect(0, 0, canvas.width * 0.48, canvas.height * 0.36);
+            ctx.fillStyle = 'rgba(17, 11, 21, 1)';
+            ctx.fillRect(0, 0, canvas.width * 0.467, canvas.height * 0.36);
         }
         // --- Sharp/Contrast ---
         let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1304,7 +1321,7 @@ class OCRWindowController {
 
             // --- 自己チェック＆contrast自動調整 ---
             const check = this.ocrResultData.selfCheck();
-            console.log('OCR Result Check:', check);
+            console.log('OCR Result Check / Slot:', check, slotIndex);
             if (!check.valid && contrast > -50) {
                 // contrastを-10下げて再実行
                 contrastInput.value = contrast - 25;
@@ -1430,6 +1447,7 @@ class OCRWindowController {
                                     this.ocrResultData.id = matchedEcho.id;
                                     this.ocrResultData.elementType = matchedEcho.element;
                                     this.ocrResultData.cost = matchedEcho.cost;
+                                    this.fixMainStatus2();
                                 }
                                 const echoSelect = document.getElementById('echo-select');
                                 for (const option of echoSelect.querySelectorAll('option')) {
@@ -1461,57 +1479,25 @@ class OcrParser {
         this.labels = [...new Set([...MAIN_STATUS_1_LABELS, ...SUB_STATUS_LABELS])];
     }
 
-    correctParamName(paramPart) {
+    normalizeParamPart(paramPart) {
         if (paramPart.includes("攻撃") && !paramPart.includes("ダメージアップ")) return "攻撃力";
         if (paramPart.includes("防御")) return "防御力";
-        return null;
-    }
 
-    normalizeParamPart(paramPart) {
-        paramPart = paramPart.replace('攻撃カ', '攻撃力');
-        for (const label of this.labels) {
+        paramPart = paramPart.replace('・', '').replace('%', '');
+        for (let i = this.labels.length - 1; i >= 0; i--) {
+            const label = this.labels[i];
             if (paramPart.includes(label)) {
             return label;
             }
         }
-        // Levenshtein distance to find the closest match
-        let bestMatch = '';
-        let minDistance = Infinity;
-
-        const levenshtein = (s1, s2) => {
-            if (!s1.length) return s2.length;
-            if (!s2.length) return s1.length;
-            const arr = [];
-            for (let i = 0; i <= s2.length; i++) {
-                arr[i] = [i];
-                for (let j = 1; j <= s1.length; j++) {
-                    arr[i][j] =
-                    i === 0
-                        ? j
-                        : Math.min(
-                        arr[i - 1][j] + 1,
-                        arr[i][j - 1] + 1,
-                        arr[i - 1][j - 1] + (s1[j - 1] === s2[i - 1] ? 0 : 1)
-                        );
-                }
-            }
-            return arr[s2.length][s1.length];
-        };
-
-        paramPart = paramPart.substring(1); // 1文字だけ削除
-        for (const label of this.labels) {
-            const distance = levenshtein(paramPart, label);
-            if (distance < minDistance) {
-                minDistance = distance;
-                bestMatch = label;
+        paramPart = paramPart.slice(1);
+        for (let i = 0; i < this.labels.length; i++) {
+            const label = this.labels[i];
+            if (label.includes(paramPart)) {
+            return label;
             }
         }
-
-        // Return the best match if the distance is reasonable
-        if (minDistance <= Math.floor(paramPart.length / 2)) {
-            return bestMatch;
-        }
-        return '';
+        return this.getClosestLabel(paramPart);
     }
     getValuePart(text) {
         text = text.replace(
@@ -1523,8 +1509,6 @@ class OcrParser {
     }
 
     getClosestLabel(paramPart) {
-        // Normalize before comparing
-        const normalized = this.normalizeParamPart(paramPart);
         const similarity = (a, b) => {
             let matches = 0;
             for (let i = 0; i < Math.min(a.length, b.length); i++) {
@@ -1533,10 +1517,10 @@ class OcrParser {
             return matches / Math.max(a.length, b.length);
         };
 
-        let bestMatch = normalized,
+        let bestMatch = paramPart,
             highestScore = 0;
         for (const label of this.labels) {
-            const score = similarity(normalized, label);
+            const score = similarity(paramPart, label);
             if (score > highestScore) {
                 highestScore = score;
                 bestMatch = label;
@@ -1590,16 +1574,13 @@ class OcrParser {
             const mainStatus1Line = lines[2];
             const value1 = this.getValuePart(mainStatus1Line)
             let param1Part = mainStatus1Line.replace(value1, '')
-            console.log('mainStatus1Line param1Part:', param1Part);
-            param1Part = this.normalizeParamPart(param1Part);
-            const paramName1 = this.correctParamName(param1Part) || this.getClosestLabel(param1Part);
+            const paramName1 = this.normalizeParamPart(param1Part);
 
             // Main Status 2
             const mainStatus2Line = lines[3];
             const value2 = this.getValuePart(mainStatus2Line)
             let param2Part = mainStatus2Line.replace(value2, '')
-            param2Part = this.normalizeParamPart(param2Part);
-            const paramName2 = this.correctParamName(param2Part) || this.getClosestLabel(param2Part);
+            const paramName2 = this.normalizeParamPart(param2Part);
 
             mainStatus1 = {
                 propertyName: paramName1,
@@ -1610,20 +1591,33 @@ class OcrParser {
                 value: value2
             };
 
+            // mainStatus2 の穴埋め
             if (cost === '不明') {
                 const v2 = parseFloat(mainStatus2.value);
                 if (v2 === 100) cost = '3';
                 else if (v2 === 150) cost = '4';
                 else if (v2 > 150) cost = '1';
             }
+            if (cost === '1') {
+                mainStatus2.propertyName = 'HP';
+                mainStatus2.value = 2280;
+            }
+            else if (cost === '3') {
+                mainStatus2.propertyName = '攻撃力';
+                mainStatus2.value = 100;
+            }
+            else if (cost === '4') {
+                mainStatus2.propertyName = '攻撃力';
+                mainStatus2.value = 150;
+            }
+
 
             // Sub Status
             const subStatusLines = lines.slice(-5); // Get the last 5 lines
             subStatus = subStatusLines.map(text => {
                 const subStatusValue = this.getValuePart(text)
                 let paramPart = text.replace(subStatusValue, '');
-                paramPart = this.normalizeParamPart(paramPart);
-                const subStatusParamName = this.correctParamName(paramPart) || this.getClosestLabel(paramPart);
+                const subStatusParamName = this.normalizeParamPart(paramPart);
 
                 return {
                     propertyName: subStatusParamName,
@@ -2256,7 +2250,7 @@ class EchoModel {
         }
         // subStatus
         this.subStatus.forEach((s, i) => {
-            if (s.propertyName && !SUB_STATUS_LABELS.includes(s.propertyName)) {
+            if (!SUB_STATUS_LABELS.includes(s.propertyName)) {
                 errors.push(`subStatus[${i}].propertyName "${s.propertyName}" is invalid`);
             }
         });

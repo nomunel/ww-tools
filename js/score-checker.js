@@ -805,7 +805,7 @@ class OCRWindowView {
         this.reloadBtn = document.createElement('button');
         this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 1.0);
         this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 1.0);
-        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, -50);
+        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, 0);
         this.cropInputsAppended = false;
         this.echoCropInputsAppended = false;
         this.echoCropPreviewImg = null;

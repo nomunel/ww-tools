@@ -1123,14 +1123,10 @@ class OCRWindowController {
         // OCRでキャラ名を取得
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(charaNameCanvas, {
                 // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
-                langPath: [
-                    './tesseract/eng.traineddata.gz',
-                    './tesseract/jpn.traineddata.gz',
-                ]
             });
             
             const ocrCharaName = text.replace(/\s/g, '');
@@ -1169,13 +1165,9 @@ class OCRWindowController {
 
         const { createWorker } = Tesseract;
         (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
+            const worker = await createWorker('jpn');
             const { data: { text } } = await worker.recognize(weaponNameCanvas, {
                 preserve_interword_spaces: true,
-                langPath: [
-                    './tesseract/eng.traineddata.gz',
-                    './tesseract/jpn.traineddata.gz',
-                ]
             });
             
             const ocrWeaponName = text.replace(/\s/g, '');
@@ -1279,10 +1271,6 @@ class OCRWindowController {
             const { data: { text } } = await worker.recognize(canvas, {
                 tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
                 preserve_interword_spaces: true,
-                langPath: [
-                    './tesseract/eng.traineddata.gz',
-                    './tesseract/jpn.traineddata.gz',
-                ]
             });
             let cleanedText = this.cleanText(text);
             if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;

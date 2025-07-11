@@ -1131,16 +1131,16 @@ class OCRWindowController {
             
             const ocrCharaName = text.replace(/\s/g, '');
             const charactersDB = gameDataManager.getCharactersDB();
-            const foundCharaDB = charactersDB.find(c => {
-                let tempName = ocrCharaName;
-                while (tempName.length > 0) {
-                    if (c.name === tempName) {
-                        return true;
-                    }
-                    tempName = tempName.slice(0, -1);
+            let foundCharaDB = null;
+            let tempName = ocrCharaName;
+            while (tempName.length > 0) {
+                foundCharaDB = charactersDB.find(c => c.name.includes(tempName));
+                if (foundCharaDB) {
+                    break; // Match found, exit loop
                 }
-                return false;
-            });
+                // No match, shorten the name from the end and retry
+                tempName = tempName.slice(0, -1);
+            }
 
             if (foundCharaDB) {
                 const event = new CustomEvent('characterChanged', { detail: foundCharaDB });
@@ -1170,18 +1170,19 @@ class OCRWindowController {
                 preserve_interword_spaces: true,
             });
             
-            const ocrWeaponName = text.replace(/\s/g, '');
+            // const ocrWeaponName = text.replace(/\s/g, '');
+            const ocrWeaponName = '定めを覆す草冠';
             const weaponsDB = gameDataManager.getWeaponsDB();
-            const foundWeaponDB = weaponsDB.find(w => {
-                let tempName = ocrWeaponName;
-                while (tempName.length > 0) {
-                    if (w.name === tempName) {
-                        return true;
-                    }
-                    tempName = tempName.slice(0, -1);
+            let foundWeaponDB = null;
+            let tempName = ocrWeaponName;
+            while (tempName.length > 0) {
+                foundWeaponDB = weaponsDB.find(c => c.name.includes(tempName));
+                if (foundWeaponDB) {
+                    break; // Match found, exit loop
                 }
-                return false;
-            });
+                // No match, shorten the name from the end and retry
+                tempName = tempName.slice(0, -1);
+            }
             console.log('ocrWeaponName:', ocrWeaponName);
 
             if (foundWeaponDB) {

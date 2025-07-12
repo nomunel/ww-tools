@@ -803,8 +803,8 @@ class OCRWindowView {
         this.matchedEchoThumb = document.getElementById('matched-echo-thumb');
         this.cropedPasteImage = document.getElementById('croped-paste-image');
         this.reloadBtn = document.createElement('button');
-        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 1.0);
-        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 1.0);
+        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 0.0);
+        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 0.0);
         this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, 0);
         this.cropInputsAppended = false;
         this.echoCropInputsAppended = false;
@@ -1257,7 +1257,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 4;
+        const scale = 10;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
@@ -2244,10 +2244,10 @@ class EchoModel {
         if (!MAIN_STATUS_1_LABELS.includes(this.mainStatus1.propertyName)) {
             errors.push(`mainStatus1.propertyName "${this.mainStatus1.propertyName}" is invalid`);
         }
-        // mainStatus2
-        if (!MAIN_STATUS_2_LABELS.includes(this.mainStatus2.propertyName)) {
-            errors.push(`mainStatus2.propertyName "${this.mainStatus2.propertyName}" is invalid`);
-        }
+        // // mainStatus2  // NOTE: mainStatus2は必ずしも必要ではないので、チェックを外す
+        // if (!MAIN_STATUS_2_LABELS.includes(this.mainStatus2.propertyName)) {
+        //     errors.push(`mainStatus2.propertyName "${this.mainStatus2.propertyName}" is invalid`);
+        // }
         // subStatus
         this.subStatus.forEach((s, i) => {
             if (!SUB_STATUS_LABELS.includes(s.propertyName)) {

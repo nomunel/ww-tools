@@ -3,9 +3,15 @@ const { createWorker } = Tesseract;
 const worker = await createWorker(['eng', 'jpn']);
 
 const urlParams = new URLSearchParams(window.location.search);
-const isDebugMode = urlParams.get('debug') === 'true'; // デバッグモードのフラグ
-const TEST_SLOT = parseInt(urlParams.get('slot'), 10) || 0; // デバッグ用のスロット番号
-const OCR_SCALE = parseInt(urlParams.get('scale'), 10) || 8; // OCRスケール倍率
+const OCR_SETTINGS = {
+    isDebugMode: urlParams.get('debug') === 'true', // デバッグモードのフラグ
+    debugSlot: parseInt(urlParams.get('slot'), 10) || 0, // デバッグ用のスロット番号
+    scale: parseInt(urlParams.get('scale'), 10) || 3, // OCRスケール倍率
+    blur: parseFloat(urlParams.get('blur')) || 0.0, // OCRぼかし
+    sharp: parseFloat(urlParams.get('sharp')) || 1.0, // OCRシャープ
+    contrast: parseFloat(urlParams.get('contrast')) || 0.0, // OCRコントラスト
+}
+console.log("OCR Settings:", OCR_SETTINGS);
 
 const MAIN_STATUS_1_LABELS = [
     "HP",
@@ -805,9 +811,9 @@ class OCRWindowView {
         this.matchedEchoThumb = document.getElementById('matched-echo-thumb');
         this.cropedPasteImage = document.getElementById('croped-paste-image');
         this.reloadBtn = document.createElement('button');
-        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, 0.0);
-        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, 0.0);
-        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, 0);
+        this.blurControl = this.createSlider('ぼかし: ', 0, 5, 0.5, OCR_SETTINGS.blur);
+        this.sharpControl = this.createSlider('エッジ強調: ', 0, 5, 0.5, OCR_SETTINGS.sharp);
+        this.contrastControl = this.createSlider('コントラスト: ', -100, 100, 1, OCR_SETTINGS.contrast);
         this.cropInputsAppended = false;
         this.echoCropInputsAppended = false;
         this.echoCropPreviewImg = null;
@@ -1008,7 +1014,6 @@ class OCRWindowController {
         this.echoImageList = null;
 
         this.view = new OCRWindowView();
-        this.isDebugMode = typeof isDebugMode !== "undefined" ? isDebugMode : false;
         this.init();
     }
     dispatchLoadedOcrEvent(ocrResult, slotIndex){
@@ -1016,15 +1021,15 @@ class OCRWindowController {
         document.dispatchEvent(event);
     }
     init() {
-        if (isDebugMode) {
+        if (OCR_SETTINGS.isDebugMode) {
             this.view.setupControls();
         }
         this.addEventListeners();
     }
     addEventListeners() {
-        if (isDebugMode) {
+        if (OCR_SETTINGS.isDebugMode) {
             this.view.closeBtn.onclick = () => this.view.hideWindow();
-            this.view.reloadBtn.onclick = () => this.applyFiltersAndOCR(TEST_SLOT);
+            this.view.reloadBtn.onclick = () => this.applyFiltersAndOCR(OCR_SETTINGS.debugSlot);
         }
 
         this.view.pasteArea.addEventListener('paste', (e) => this.handlePaste(e));
@@ -1057,7 +1062,7 @@ class OCRWindowController {
         });
     }
     handlePaste(event) {
-        if (isDebugMode) {
+        if (OCR_SETTINGS.isDebugMode) {
             this.view.showWindow();
         }
         
@@ -1105,8 +1110,8 @@ class OCRWindowController {
                 await this.charaNameOCR();
                 await this.weaponNameOCR();
 
-                if (isDebugMode) {
-                    this.applyFiltersAndOCR(TEST_SLOT);
+                if (OCR_SETTINGS.isDebugMode) {
+                    this.applyFiltersAndOCR(OCR_SETTINGS.debugSlot);
                 }
                 else{
                     // 5つのエコースロットを順にOCR
@@ -1129,7 +1134,7 @@ class OCRWindowController {
         const cropDefaults = { sxRate: 0.035, syRate: 0.02, swRate: 0.36, shRate: 0.055 };
         let sx, sy, sw, sh;
 
-        if (this.isDebugMode) {
+        if (OCR_SETTINGS.isDebugMode) {
             this.view.setupCharaNameCropInputs(cropDefaults, this.img, (canvas) => {
                 this.view.updateCharaNameCropPreview(canvas);
             });
@@ -1259,7 +1264,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = OCR_SCALE;
+        const scale = OCR_SETTINGS.scale;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;
@@ -1362,7 +1367,7 @@ class OCRWindowController {
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        if (this.isDebugMode) {
+        if (OCR_SETTINGS.isDebugMode) {
             this.view.setupEchoCropInputs(cropValues, slotIndex, canvas, (canvasRef) => this.view.updateEchoCropPreview(canvasRef));
             this.view.updateEchoCropPreview(canvas);
         } else {

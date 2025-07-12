@@ -1121,11 +1121,14 @@ class OCRWindowController {
                     }
                     else{
                         // 5つのエコースロットを順にOCR
-                        const ocrPromises = [];
                         for (let index = 0; index < 5; index++) {
-                            ocrPromises.push(this.applyFiltersAndOCR(index));
+                            await this.applyFiltersAndOCR(index);
                         }
-                        await Promise.all(ocrPromises);
+                        // const ocrPromises = [];
+                        // for (let index = 0; index < 5; index++) {
+                        //     ocrPromises.push(this.applyFiltersAndOCR(index));
+                        // }
+                        // await Promise.all(ocrPromises);
                     }
                 } else {
                     await this.applyFiltersAndOCR(-1);

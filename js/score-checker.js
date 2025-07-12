@@ -1076,6 +1076,7 @@ class OCRWindowController {
             alert('画像データが見つかりませんでした。画像を貼り付けまたはドロップしてください。');
             return;
         }
+
         const imageFile = items[0].getAsFile();
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -1104,23 +1105,39 @@ class OCRWindowController {
     applyFiltersAndOCRs() {
         const imgData = this.imgData;
         if (!imgData) return;
-        this.img.onload = async () => {
-            const isLarge = this.img.width > 1000;
-            if (isLarge) {
-                await this.charaNameOCR();
-                await this.weaponNameOCR();
 
-                if (OCR_SETTINGS.isDebugMode) {
-                    this.applyFiltersAndOCR(OCR_SETTINGS.debugSlot);
-                }
-                else{
-                    // 5つのエコースロットを順にOCR
-                    for (let index = 0; index < 5; index++) {
-                        this.applyFiltersAndOCR(index);
+        this.img.onload = async () => {
+            try {
+                const ocrStartEvent = new CustomEvent('ocrProcessingStart');
+                document.dispatchEvent(ocrStartEvent);
+
+                const isLarge = this.img.width > 1000;
+                if (isLarge) {
+                    await this.charaNameOCR();
+                    await this.weaponNameOCR();
+
+                    if (OCR_SETTINGS.isDebugMode) {
+                        await this.applyFiltersAndOCR(OCR_SETTINGS.debugSlot);
                     }
+                    else{
+                        // 5つのエコースロットを順にOCR
+                        const ocrPromises = [];
+                        for (let index = 0; index < 5; index++) {
+                            ocrPromises.push(this.applyFiltersAndOCR(index));
+                        }
+                        await Promise.all(ocrPromises);
+                    }
+                } else {
+                    await this.applyFiltersAndOCR(-1);
                 }
-            } else {
-                this.applyFiltersAndOCR(-1);
+            }
+            catch (error) {
+                console.error('OCR処理中にエラーが発生しました:', error);
+                alert('OCR処理中にエラーが発生しました。');
+            }
+            finally {
+                const ocrEndEvent = new CustomEvent('ocrProcessingEnd');
+                document.dispatchEvent(ocrEndEvent);
             }
         };
         this.img.src = imgData;
@@ -1238,7 +1255,7 @@ class OCRWindowController {
             }
         })();
     }
-    applyFiltersAndOCR(slotIndex = 0, isRetry = false) {
+    async applyFiltersAndOCR(slotIndex = 0, isRetry = false) {
         const img = this.img;
         const isLarge = this.img.width > 1000;
         let sx = 0, sy = 0, sw = img.width, sh = img.height;
@@ -1313,36 +1330,34 @@ class OCRWindowController {
         // --- Preview ---
         this.view.setCropedPasteImage(canvas.toDataURL(), sw, sh);
         // --- OCR ---
-        (async () => {
-            const worker = await createWorker(['eng', 'jpn']);
-            const { data: { text } } = await worker.recognize(canvas, {
-                tessedit_char_whitelist: WHITE_LIST,
-                // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
-                preserve_interword_spaces: true,
-            });
-            let cleanedText = this.cleanText(text);
-            if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;
-            this.view.setResultText(cleanedText);
-            // EchoModelインスタンスを格納
-            this.ocrResultData = new OcrParser(cleanedText).parse();
+        const worker = await createWorker(['eng', 'jpn']);
+        const { data: { text } } = await worker.recognize(canvas, {
+            tessedit_char_whitelist: WHITE_LIST,
+            // tessedit_char_blacklist: '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳０１２３４５６７８９',
+            preserve_interword_spaces: true,
+        });
+        let cleanedText = this.cleanText(text);
+        if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;
+        this.view.setResultText(cleanedText);
+        // EchoModelインスタンスを格納
+        this.ocrResultData = new OcrParser(cleanedText).parse();
 
-            // --- 自己チェック＆contrast自動調整 ---
-            const check = this.ocrResultData.selfCheck();
-            console.log('OCR Result Check / Slot:', check, slotIndex);
-            if (!check.valid && contrast > -50) {
-                // contrastを-10下げて再実行
-                contrastInput.value = contrast - 25;
-                this.applyFiltersAndOCR(slotIndex, true);
-                return;
-            }
-            // 成功 or contrastが-50まで下がったらcallback
-            if (isLarge) {
-                // TODO: Largeだから、ではなく一律不足情報を補完する関数を設けてやる（updateFromOcr側の処理をこっちに持ってくる）
-                this.showEchoCropAndMatchUI(img, slotIndex);
-            } else {
-                this.dispatchLoadedOcrEvent(this.ocrResultData, slotIndex);
-            }
-        })();
+        // --- 自己チェック＆contrast自動調整 ---
+        const check = this.ocrResultData.selfCheck();
+        console.log('OCR Result Check / Slot:', check, slotIndex);
+        if (!check.valid && contrast > -50) {
+            // contrastを-10下げて再実行
+            contrastInput.value = contrast - 25;
+            await this.applyFiltersAndOCR(slotIndex, true);
+            return;
+        }
+        // 成功 or contrastが-50まで下がったらcallback
+        if (isLarge) {
+            // TODO: Largeだから、ではなく一律不足情報を補完する関数を設けてやる（updateFromOcr側の処理をこっちに持ってくる）
+            this.showEchoCropAndMatchUI(img, slotIndex);
+        } else {
+            this.dispatchLoadedOcrEvent(this.ocrResultData, slotIndex);
+        }
     }
     cleanText(text) {
         return text
@@ -2826,6 +2841,7 @@ class WWScore{
         this.observeCharaChange();
         this.observeWeaponChange();
         this.observeFactorChange();
+        this.observeEchoList();
         this.observeEchoStatusChange();
     }
     applyUserData() {
@@ -2883,15 +2899,14 @@ class WWScore{
             const { ocrResult, slotIndex } = e.detail;
             this.echoListManager.updateFromOcr(ocrResult, slotIndex);
         });
-
-        // UserDataの現在のキャラのechoListを更新
-        document.addEventListener('updatEchoSlot', (e) => {
-            this.userCharaDataManager.setEchoList(e.detail.echoList);
-            
-            this.subtotalListManager.update();
-            this.echoListManager.calcEchoScoreAll();
+        document.addEventListener('ocrProcessingStart', () => {
+            document.body.classList.add('is-loading');
+        });
+        document.addEventListener('ocrProcessingEnd', () => {
+            document.body.classList.remove('is-loading');
         });
     }
+    
     observeCharaChange() {
         // UserCharaDataManagerのキャラ切り替えイベントを監視
         document.addEventListener('characterChanged', (e) => {
@@ -2935,6 +2950,15 @@ class WWScore{
         this.subtotalScoreListView.onTypeChange((type) => {
             this.subtotalListManager.update();
             this.userCharaDataManager.setScoreFactorType(type);
+            this.echoListManager.calcEchoScoreAll();
+        });
+    }
+    observeEchoList(){
+        // UserDataの現在のキャラのechoListを更新
+        document.addEventListener('updatEchoSlot', (e) => {
+            this.userCharaDataManager.setEchoList(e.detail.echoList);
+            
+            this.subtotalListManager.update();
             this.echoListManager.calcEchoScoreAll();
         });
     }

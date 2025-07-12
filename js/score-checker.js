@@ -4,7 +4,8 @@ const worker = await createWorker(['eng', 'jpn']);
 
 const urlParams = new URLSearchParams(window.location.search);
 const isDebugMode = urlParams.get('debug') === 'true'; // デバッグモードのフラグ
-const TEST_SLOT = parseInt(urlParams.get('slot'), 10) || 2; // デバッグ用のスロット番号
+const TEST_SLOT = parseInt(urlParams.get('slot'), 10) || 0; // デバッグ用のスロット番号
+const OCR_SCALE = parseInt(urlParams.get('scale'), 10) || 8; // OCRスケール倍率
 
 const MAIN_STATUS_1_LABELS = [
     "HP",
@@ -1258,7 +1259,7 @@ class OCRWindowController {
         // --- Canvas ---
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const scale = 8;
+        const scale = OCR_SCALE;
         canvas.width = sw * scale;
         canvas.height = sh * scale;
         ctx.filter = `blur(${this.view.blurControl.slider.value}px)`;

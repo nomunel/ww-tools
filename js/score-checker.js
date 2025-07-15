@@ -1105,11 +1105,12 @@ class OCRWindowController {
     applyFiltersAndOCRs() {
         const imgData = this.imgData;
         if (!imgData) return;
+        
+        const ocrStartEvent = new CustomEvent('ocrProcessingStart');
+        document.dispatchEvent(ocrStartEvent);
 
         this.img.onload = async () => {
             try {
-                const ocrStartEvent = new CustomEvent('ocrProcessingStart');
-                document.dispatchEvent(ocrStartEvent);
 
                 const isLarge = this.img.width > 1000;
                 if (isLarge) {
@@ -1120,15 +1121,15 @@ class OCRWindowController {
                         await this.applyFiltersAndOCR(OCR_SETTINGS.debugSlot);
                     }
                     else{
-                        // 5つのエコースロットを順にOCR
+                        const ocrPromises = [];
                         for (let index = 0; index < 5; index++) {
-                            await this.applyFiltersAndOCR(index);
+                            ocrPromises.push(this.applyFiltersAndOCR(index));
                         }
-                        // const ocrPromises = [];
+                        await Promise.all(ocrPromises);
+                        // // 5つのエコースロットを順にOCR
                         // for (let index = 0; index < 5; index++) {
-                        //     ocrPromises.push(this.applyFiltersAndOCR(index));
+                        //     await this.applyFiltersAndOCR(index);
                         // }
-                        // await Promise.all(ocrPromises);
                     }
                 } else {
                     await this.applyFiltersAndOCR(-1);
@@ -1258,7 +1259,7 @@ class OCRWindowController {
             }
         })();
     }
-    async applyFiltersAndOCR(slotIndex = 0, isRetry = false) {
+    async applyFiltersAndOCR(slotIndex = 0, checkResult = {}) {
         const img = this.img;
         const isLarge = this.img.width > 1000;
         let sx = 0, sy = 0, sw = img.width, sh = img.height;
@@ -1343,15 +1344,15 @@ class OCRWindowController {
         if (isLarge) cleanedText = 'NoName\nNoCost\n' + cleanedText;
         this.view.setResultText(cleanedText);
         // EchoModelインスタンスを格納
-        this.ocrResultData = new OcrParser(cleanedText).parse();
+        this.ocrResultData = new OcrParser(cleanedText).parse(checkResult);
 
         // --- 自己チェック＆contrast自動調整 ---
-        const check = this.ocrResultData.selfCheck();
-        console.log('OCR Result Check / Slot:', check, slotIndex);
-        if (!check.valid && contrast > -50) {
+        checkResult = this.ocrResultData.selfCheck();
+        console.log('OCR Check Errors / Slot:', checkResult.errors, slotIndex);
+        if (!Object.keys(checkResult.errors) && contrast > -50) {
             // contrastを-10下げて再実行
             contrastInput.value = contrast - 25;
-            await this.applyFiltersAndOCR(slotIndex, true);
+            await this.applyFiltersAndOCR(slotIndex, checkResult);
             return;
         }
         // 成功 or contrastが-50まで下がったらcallback
@@ -1505,8 +1506,11 @@ class OcrParser {
     }
 
     normalizeParamPart(paramPart) {
+        if (!paramPart) return '';
         if (paramPart.includes("攻撃") && !paramPart.includes("ダメージアップ")) return "攻撃力";
         if (paramPart.includes("防御")) return "防御力";
+
+        console.log('normalizeParamPart:', paramPart);
 
         paramPart = paramPart.replace('・', '').replace('%', '');
         for (let i = this.labels.length - 1; i >= 0; i--) {
@@ -1554,7 +1558,8 @@ class OcrParser {
         return bestMatch;
     }
 
-    parse() {
+    parse(checkResult = {}) {
+        const checkedEchoModel = checkResult.echoModel || {};
         let lines = this.text.split('\n')
         const tempLines = [];
 
@@ -1572,21 +1577,44 @@ class OcrParser {
         let mainStatus2 = { propertyName: "", value: "" };
         let subStatus = Array(5).fill().map(() => ({ propertyName: "", value: "" }));
 
-        if (lines.length) {
-            const isNoName = lines[0].startsWith('NoName');
+        if (!lines.length) {
+            return new EchoModel({
+                name: echoName,
+                cost: cost,
+                mainStatus1: mainStatus1,
+                mainStatus2: mainStatus2,
+                subStatus: subStatus
+            });
+        }
 
-            // echoName: allow leading "・"
+        // NAME
+        const isNoName = lines[0].startsWith('NoName');
+        if(checkedEchoModel.name) {
+            echoName = checkedEchoModel.name;
+        }
+        else{
             if (isNoName) {
                 echoName = "No Name";
-            } else {
+            }
+            else {
                 echoName = lines[0].slice(0, -1).replace(/[\s\p{P}\p{S}@]{1,3}$/gu, '');
             }
+        }
 
-            // COST
+        // COST
+        if(checkedEchoModel.cost) {
+            cost = checkedEchoModel.cost;
+        }
+        else{
             const costMatch = lines[1].match(/cost(\d)/i);
             cost = costMatch ? costMatch[1] : '不明';
+        }
 
-            // Main Status 1
+        // Main Status 1
+        if (checkedEchoModel.mainStatus1) {
+            mainStatus1 = checkedEchoModel.mainStatus1;
+        }
+        else{
             if (isNoName) {
                 // NoNameの場合、Main Status 1 のvalueが改行されているので、1行にまとめる
                 lines[2] = lines[2] + lines[3]
@@ -1601,16 +1629,21 @@ class OcrParser {
             let param1Part = mainStatus1Line.replace(value1, '')
             const paramName1 = this.normalizeParamPart(param1Part);
 
-            // Main Status 2
-            const mainStatus2Line = lines[3];
-            const value2 = this.getValuePart(mainStatus2Line)
-            let param2Part = mainStatus2Line.replace(value2, '')
-            const paramName2 = this.normalizeParamPart(param2Part);
-
             mainStatus1 = {
                 propertyName: paramName1,
                 value: value1
             };
+        }
+
+        // Main Status 2
+        if (checkedEchoModel.mainStatus2) {
+            mainStatus2 = checkedEchoModel.mainStatus2;
+        }
+        else{
+            const mainStatus2Line = lines[3];
+            const value2 = this.getValuePart(mainStatus2Line)
+            let param2Part = mainStatus2Line.replace(value2, '')
+            const paramName2 = this.normalizeParamPart(param2Part);
             mainStatus2 = {
                 propertyName: paramName2,
                 value: value2
@@ -1635,21 +1668,20 @@ class OcrParser {
                 mainStatus2.propertyName = '攻撃力';
                 mainStatus2.value = 150;
             }
-
-
-            // Sub Status
-            const subStatusLines = lines.slice(-5); // Get the last 5 lines
-            subStatus = subStatusLines.map(text => {
-                const subStatusValue = this.getValuePart(text)
-                let paramPart = text.replace(subStatusValue, '');
-                const subStatusParamName = this.normalizeParamPart(paramPart);
-
-                return {
-                    propertyName: subStatusParamName,
-                    value: subStatusValue
-                };
-            });
         }
+
+        // Sub Status
+        const subStatusLines = lines.slice(-5); // Get the last 5 lines
+        subStatus = subStatusLines.map(text => {
+            const subStatusValue = this.getValuePart(text)
+            let paramPart = text.replace(subStatusValue, '');
+            const subStatusParamName = this.normalizeParamPart(paramPart);
+
+            return {
+                propertyName: subStatusParamName,
+                value: subStatusValue
+            };
+        });
 
         // Return EchoModel instance
         return new EchoModel({
@@ -2263,27 +2295,35 @@ class EchoModel {
      * @returns {object} エラー情報 { valid: boolean, errors: array }
      */
     selfCheck() {
-        const errors = [];
+        const checkResult = {
+            echoModel: this,
+            errors: {}
+        };
 
         // mainStatus1
         if (!MAIN_STATUS_1_LABELS.includes(this.mainStatus1.propertyName)) {
-            errors.push(`mainStatus1.propertyName "${this.mainStatus1.propertyName}" is invalid`);
+            checkResult.echoModel.mainStatus1 = {};
+            checkResult.errors.mainStatus1 = {
+                target: 'propertyName',
+                value: this.mainStatus1.propertyName
+            };
         }
         // // mainStatus2  // NOTE: mainStatus2は必ずしも必要ではないので、チェックを外す
         // if (!MAIN_STATUS_2_LABELS.includes(this.mainStatus2.propertyName)) {
-        //     errors.push(`mainStatus2.propertyName "${this.mainStatus2.propertyName}" is invalid`);
+        //     checkResult.errors.push(`mainStatus2.propertyName "${this.mainStatus2.propertyName}" is invalid`);
         // }
         // subStatus
         this.subStatus.forEach((s, i) => {
             if (!SUB_STATUS_LABELS.includes(s.propertyName)) {
-                errors.push(`subStatus[${i}].propertyName "${s.propertyName}" is invalid`);
-            }
+                checkResult.errors.subStatus = {}
+                checkResult.errors.subStatus['index' + i] = {
+                    target: 'propertyName',
+                    value: s.propertyName
+                }
+            };
         });
 
-        return {
-            valid: errors.length === 0,
-            errors
-        };
+        return checkResult;
     }
 }
 
